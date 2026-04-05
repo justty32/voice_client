@@ -1,120 +1,79 @@
-# Voice Client
+# Voice Client (V-TUI Assistant)
 
-Gemini 說了
-這份架構設計文檔（Architecture Design Document, ADD）將作為你開發這個專案的藍圖。它整合了你提到的「絕對掌控權」、「緩衝區協作」以及「語音優先級」等核心概念。
+一个整合语音与文字、具备本地小模型辅助、且由使用者完全掌控缓冲区的终端机 AI 客户端。
 
-📝 專案名稱：V-TUI Assistant (暫定)
-核心願景：一個整合語音與文字、具備本地小模型輔助、且由使用者完全掌控緩衝區的終端機 AI 客戶端。
-🏛️ 1. 系統架構概覽 (System Architecture)
-系統採用非同步事件驅動架構 (Asynchronous Event-Driven)，確保語音錄製、文字輸入與語音播放能同時並行而不互相阻塞。
+## 🌟 核心愿景
 
-模組拆解：
-Input Manager (輸入管理器)：處理全域快捷鍵 (F4-F8)、TUI 文字輸入、語音錄製與 STT。
+V-TUI Assistant 旨在提供一个高效、直观的语音优先交互环境。通过整合 STT (语音转文字)、TTS (文字转语音) 以及本地 SLM (小语言模型) 的摘要能力，让用户能够通过最自然的语音方式与强大的远端 LLM 进行深度交流。
 
-Buffer Room (緩衝空間)：核心數據中控，存放未發送的內容，支援手動編輯與檔案導出入。
+## 🏗️ 系统架构
 
-Processing Engine (處理引擎)：
+系统采用非同步事件驱动架构，确保各模块并发运行而不互相阻塞：
 
-Local SLM (2B)：執行總結、糾錯、預覽等可選任務。
+- **Main Router (`main.py`)**: 核心调度器，负责各模块间的消息转发。
+- **Audio Pipeline**:
+    - **Recorder (`record.py`)**: 具备智能切片逻辑的录音器，支持 VAD (静音检测)。
+    - **VoiceToText (`voice_to_text.py`)**: 基于 `faster-whisper` 的本地 STT 引擎。
+    - **AudioPriorityPlayer (`text_to_voice.py`)**: 具备优先级的 TTS 播放器，支持立即中断与排队。
+- **Logic & Buffer**:
+    - **TextAccumulator (`text_accumulator.py`)**: 消息缓冲区，允许在发送前累积多段输入。
+    - **SummaryGenerator (`summary_generator.py`)**: 调用本地 SLM (如 gemma3:1b) 生成长回答摘要。
+    - **SessionManager (`session_manager.py`)**: 管理对话历史与多会话切换。
+- **Interface**:
+    - **TuiRenderer (`tui_renderer.py`)**: 基于终端的交互界面。
+    - **KeyboardListener (`keyboard_listener.py`)**: 全局快捷键监听。
 
-Cloud/Remote LLM：執行核心對話邏輯。
+## ⌨️ 控制指南
 
-Output Manager (輸出管理器)：
+### 全局快捷键
+- **F7**: **语音指令模式**。录音结束后将识别内容解析为斜线指令（如“清空”、“发送”）。
+- **F8**: **录音开关**。点击开始录音，再次点击停止并识别（内容进入缓冲区）。
+- **F9**: **快速发送**。立即将当前缓冲区内容发送给远端 LLM。
+- **F10**: **强制停止语音**。立即中断正在播放的 TTS。
 
-TUI Renderer：顯示對話與狀態。
+### 斜线指令 (Slash Commands)
+在终端输入框输入或通过语音指令触发：
+- `/new [title]`: 新建对话。
+- `/switch [title]`: 切换到指定对话。
+- `/list`: 列出所有对话。
+- `/delete [title]`: 删除对话。
+- `/save [file]`: 保存对话到文件。
+- `/clear`: 清除 UI 内容。
+- `/clear buffer`: 清除缓冲区内容。
+- `/show`: 查看缓冲区当前积攒的内容。
+- `/stop`: 停止当前语音播放。
+- `/help`: 显示帮助信息。
 
-Priority Voice Queue：管理不同等級的語音輸出播放。
+## ⚙️ 配置说明 (`config.ini`)
 
-🛠️ 2. 核心功能細節設計
-A. 暫存緩衝區邏輯 (Buffer Logic)
-緩衝區是發送前的最後一道防線。
+项目核心行为可通过 `config.ini` 进行高度自定义：
 
-數據來源：STT(Voice) + TUI(Text) + File Import。
+- **[AUDIO]**: 采样率、静音检测阈值、最大录音时长等。
+- **[STT]**: Whisper 模型大小、运行设备 (cpu/cuda) 等。
+- **[SLM]**: 本地小模型配置，包括 `summary_threshold` (触发摘要的字数门槛)。
+- **[LLM]**: 核心对话模型配置与 API 地址。
+- **[TTS]**: 语音合成引擎设置、语速与音量。
 
-協作模式：
+## 🚀 快速开始
 
-語音錄入後自動附加換行。
+1. **环境准备**:
+   - 安装 Python 3.10+。
+   - 确保已安装 FFmpeg (Whisper 依赖)。
+   - (推荐) 安装 Ollama 以运行本地 SLM 进行摘要生成。
 
-TUI 輸入後按下回車（Enter）自動附加。
+2. **安装依赖**:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-SLM 介入 (可選)：
+3. **运行程序**:
+   ```bash
+   python main.py
+   ```
 
-/clean (F6)：小模型對 Buffer 進行語法修正。
-
-/summary：小模型對 Buffer 進行發送前摘要。
-
-B. 語音流水線與分段 (Voice Pipeline)
-VAD (Voice Activity Detection)：
-
-檢測停頓時間 t (預設 1.5s)。
-
-若 t>threshold 或 錄音時長 >60s，觸發切片送至 faster-whisper。
-
-STT 引擎：本地端推理，結果非同步寫入 Buffer。
-
-C. 語音優先級隊列 (Audio Priority Queue)
-系統維護兩個對列：High-Priority (P0, P1) 與 Low-Priority (P2)。
-
-等級	內容範例	播放行為
-P0 (Critical)	系統警告、錄音開始/結束音	立即打斷當前播放，播放後恢復。
-P1 (Summary)	SLM 生成的摘要（發送前/接收後）	排在 P2 之前，若 P2 正在播放，可選擇壓低 P2 音量 (Ducking)。
-P2 (Content)	LLM 完整回覆文本	正常排隊播放。
-💾 3. 數據持久化與 Session 管理
-存檔結構 (Directory Structure)
-Plaintext
-/vault
-  /sessions
-    /session_001
-      - chat_history.json   (實際對話紀錄)
-      - buffer_state.json   (未發送的暫存內容)
-      - actions.log         (SLM 修改、系統操作紀錄)
-  - config.yaml             (快捷鍵、API Key、模型參數)
-  - global_buffer.tmp       (程式異常結束時的緊急備份)
-⌨️ 4. 控制指令系統
-快捷鍵映射 (Hotkeys)
-F8：內容錄音 (按住或開關式)。
-
-F7：語音指令錄音 (例如說出「發送」、「清空」)。
-
-F4：直接發送當前 Buffer。
-
-F6：觸發 SLM 整理 Buffer。
-
-斜線指令 (Slash Commands)
-/new：開新對話。
-
-/switch [ID]：切換 Session。
-
-/export：將 Buffer 轉存為 .txt 進行外部編輯。
-
-/import：從檔案讀回 Buffer。
-
-🧪 5. 技術棧選型 (Tech Stack)
-語言：Python 3.10+
-
-異步框架：asyncio
-
-TUI 框架：prompt_toolkit (比 curses 更強大，支援非同步輸入)。
-
-監聽器：pynput (全域按鍵攔截)。
-
-語音處理：
-
-STT：faster-whisper (本地端)。
-
-VAD：silero-vad。
-
-TTS：edge-tts (自然) 或 pyttsx3 (離線)。
-
-播放控制：pygame.mixer (支援多軌道與暫停)。
-
-模型介面：Ollama API (處理本地 2B 模型) + OpenAI/Anthropic SDK (雲端)。
-
-📈 6. 開發路線圖 (Roadmap)
-Phase 1 (MVP)：建立 TUI 基礎架構、Buffer 管理器與快捷鍵監聽。
-
-Phase 2 (Audio Core)：實作錄音切片、STT 整合與基礎語音隊列。
-
-Phase 3 (SLM Integration)：對接 Ollama，實作發送前/接收後的摘要與整理功能。
-
-Phase 4 (Advanced Logic)：實作跨 Session 語音播放、檔案匯入匯出與語音優先級。
+## 🛠️ 技术栈
+- **STT**: `faster-whisper`
+- **TTS**: `pyttsx3` (离线) / `Kokoro` (HTTP)
+- **SLM/LLM**: `Ollama API` / `OpenAI Compatible API`
+- **UI**: `rich`
+- **Input**: `pynput` (Global Hotkeys)

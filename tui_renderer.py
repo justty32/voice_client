@@ -47,6 +47,8 @@ class TuiRenderer:
             self._on_message(event.data)
         elif event.event_type == "status":
             self._on_status(event.data)
+        elif event.event_type == "clear":
+            self._console.clear()
         # Ignore volume events
 
     # ── Renderers ──────────────────────────────────────────────────────
@@ -67,6 +69,10 @@ class TuiRenderer:
             p = Panel(text, title="[bold yellow]💡 Summary[/bold yellow]", border_style="yellow", expand=False)
         elif role == "system":
             p = Panel(text, title="[bold magenta]⌘ Command[/bold magenta]", border_style="magenta", expand=False)
+        elif role == "error":
+            p = Panel(text, title="[bold red]Error[/bold red]", border_style="red", expand=False)
+        elif role == "buffer_peek":
+            p = Panel(text, title="[bold blue]Buffer Peek[/bold blue]", border_style="blue", expand=False)
         else:
             p = Text(text, style="dim italic")
         
