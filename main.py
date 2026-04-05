@@ -67,7 +67,9 @@ def main():
     # ── Session Manager (sync, no Queue) ──────────────────────────────
     session_manager = SessionManager(config)
     if not session_manager.current_title:
-        session_manager.new_session("default")
+        # 優先嘗試切換回上次可能存在的 default，不存在才建新的
+        if not session_manager.switch_session("default"):
+            session_manager.new_session("default")
 
     # ── Instantiate modules ────────────────────────────────────────────
     keyboard_listener = KeyboardListener(config, key_signal_queue)
@@ -97,6 +99,7 @@ def main():
     # ── State ──────────────────────────────────────────────────────────
     is_recording = False
     is_command_mode = False
+    last_full_response = ""
 
     # ── Main Loop (Router) ─────────────────────────────────────────────
     try:
@@ -118,6 +121,11 @@ def main():
                 elif signal == "FORCE_STOP_TTS":
                     tts_cmd_queue.put("STOP_SPEECH")
                     ui_event_queue.put(UiEvent("status", "待機"))
+                
+                elif signal == "PLAY_LAST_ORIGINAL":
+                    if last_full_response:
+                        ui_event_queue.put(UiEvent("message", {"role": "system", "text": "播放最後一次回覆原文"}))
+                        tts_input_queue.put({"text": last_full_response, "priority": "medium"})
 
             # ── B. Recorder events → UI ────────────────────────────────
             while not recorder_event_queue.empty():
@@ -148,7 +156,6 @@ def main():
                 if text == EXIT_SIGNAL:
                     raise KeyboardInterrupt
                 if text.strip():
-                    session_manager.add_message("user", text)
                     ui_event_queue.put(UiEvent("message", {"role": "user", "text": text}))
                     acc_input_queue.put({"type": "text", "text": text, "msg_type": "TextChat"})
 
@@ -166,6 +173,10 @@ def main():
                     payload.setdefault("Metadata", {})["ClientTime"] = (
                         datetime.now(timezone.utc).isoformat()
                     )
+                    
+                    # 將最終發送的內容加入對話歷史
+                    session_manager.add_message("user", payload["Content"])
+
                     ui_event_queue.put(UiEvent("message", {
                         "role": "sending",
                         "text": f"[傳送內容] {payload['Content']}",
@@ -190,8 +201,10 @@ def main():
             # ── G. HTTP response → TUI + TTS + SLM ────────────────────
             while not recv_queue.empty():
                 response = recv_queue.get_nowait()
-                _route_response(response, ui_event_queue, tts_input_queue, acc_cmd_queue, summary_queue,
+                res_text = _route_response(response, ui_event_queue, tts_input_queue, acc_cmd_queue, summary_queue,
                                 send_queue, session_manager, config)
+                if res_text:
+                    last_full_response = res_text
 
             time.sleep(0.05)
 
@@ -242,6 +255,23 @@ def _route_cli_cmd(cmd_item: dict, session_manager: SessionManager, ui_event_que
         title = " ".join(args)
         success, msg = session_manager.delete_session(title)
         ui_event_queue.put(UiEvent("message", {"role": "system", "text": msg}))
+    elif cmd == "/load":
+        if not args:
+            ui_event_queue.put(UiEvent("message", {"role": "system", "text": "請指定要載入的檔名。"}))
+        else:
+            filename = args[0]
+            success, msg = session_manager.load_session_from_file(filename)
+            ui_event_queue.put(UiEvent("message", {"role": "system", "text": msg}))
+    elif cmd == "/rename":
+        if len(args) < 2:
+            ui_event_queue.put(UiEvent("message", {"role": "system", "text": "用法: /rename [舊名稱] [新名稱]"}))
+        else:
+            old_t, new_t = args[0], args[1]
+            success, msg = session_manager.rename_session(old_t, new_t)
+            ui_event_queue.put(UiEvent("message", {"role": "system", "text": msg}))
+    elif cmd == "/history":
+        history = session_manager.get_history()
+        ui_event_queue.put(UiEvent("message", {"role": "system", "text": history}))
     elif cmd == "/save":
         filename = " ".join(args) if args else None
         success, msg = session_manager.save_session_to_file(filename)
@@ -270,7 +300,7 @@ def _route_cli_cmd(cmd_item: dict, session_manager: SessionManager, ui_event_que
     elif cmd == "/show":
         acc_cmd_queue.put({"cmd": "peek"})
     elif cmd == "/help":
-        help_text = "/new [title]  /switch [title]  /list  /delete [title]  /save [file]  /concat  /to_top  /send  /export  /import  /stop  /show  /clear [buffer]  /help  /exit"
+        help_text = "/new [title]  /switch [title]  /list  /delete [title]  /save [file]  /load [file]  /rename [old] [new]  /history  /concat  /to_top  /send  /export  /import  /stop  /show  /clear [buffer]  /help  /exit"
         ui_event_queue.put(UiEvent("message", {"role": "system", "text": help_text}))
     elif cmd == "unknown":
         ui_event_queue.put(UiEvent("message", {"role": "system", "text": f"未知指令: {args[0] if args else ''}"}))
@@ -285,7 +315,7 @@ def _route_response(
     send_queue: queue.Queue,
     session_manager: SessionManager,
     config: "configparser.ConfigParser",
-):
+) -> str | None:
     resp_type = response.get("type", "ChatReply")
     summary_threshold = config.getint("SLM", "summary_threshold", fallback=20)
 
@@ -304,6 +334,8 @@ def _route_response(
                 # 達到 threshold 字，放入摘要佇列
                 summary_queue.put({"cmd": "summary", "text": full_response,
                                    "title": session_manager.current_title})
+            ui_event_queue.put(UiEvent("status", "待機"))
+            return full_response
         ui_event_queue.put(UiEvent("status", "待機"))
 
     elif resp_type == "StatusUpdate":
@@ -315,6 +347,8 @@ def _route_response(
         msg = response.get("message", "Unknown error")
         ui_event_queue.put(UiEvent("message", {"role": "system", "text": f"[錯誤] {msg}"}))
         tts_input_queue.put({"text": f"發生錯誤：{msg}", "priority": "high"})
+    
+    return None
 
 
 def _handle_voice_command(

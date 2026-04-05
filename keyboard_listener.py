@@ -13,6 +13,7 @@ class KeyboardListener:
         self._key_command = ctrl.get("key_command_toggle", "f7").lower()
         self._key_quick_send = ctrl.get("key_quick_send", "f9").lower()
         self._key_force_stop_tts = ctrl.get("key_force_stop_tts", "f10").lower()
+        self._key_play_last_original = ctrl.get("key_play_last_original", "f6").lower()
         self._listener: Listener | None = None
 
     def start(self):
@@ -36,5 +37,7 @@ class KeyboardListener:
                 self._key_signal_queue.put("QUICK_SEND")
             elif key_name == self._key_force_stop_tts:
                 self._key_signal_queue.put("FORCE_STOP_TTS")
+            elif key_name == self._key_play_last_original:
+                self._key_signal_queue.put("PLAY_LAST_ORIGINAL")
         except Exception:
             pass
