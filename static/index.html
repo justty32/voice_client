@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Voice Client</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="app-header">
+    <span class="app-title">🎙 Voice Client</span>
+    <select id="session-select" class="session-select" onchange="onSessionChange(this)"></select>
+  </header>
+
+  <!-- Messages (scrollable) -->
+  <main id="messages" class="messages"></main>
+
+  <!-- Status bar -->
+  <div id="status-bar" class="status-bar">
+    <span id="status-dot" class="status-dot"></span>
+    <span id="status-text">連線中...</span>
+  </div>
+
+  <!-- Input area (fixed bottom) -->
+  <footer class="input-area">
+    <div class="text-row">
+      <input type="text" id="text-input" class="text-input"
+             placeholder="輸入文字..."
+             autocomplete="off" autocorrect="off" autocapitalize="off"
+             onkeydown="onInputKeydown(event)">
+      <button class="btn btn-send" onclick="sendText()">▶</button>
+    </div>
+    <div class="action-row">
+      <button id="record-btn" class="btn btn-record" onclick="toggleRecord()">
+        <span id="record-icon">🎙</span>
+        <span id="record-label">錄音</span>
+      </button>
+      <button class="btn btn-send-buf" onclick="sendCmd('/send')">▶ 送出</button>
+      <button class="btn btn-play-last" onclick="playLastResponse()">🔁 播放</button>
+      <button class="btn btn-stop" onclick="stopTTS()">⏹ 停止</button>
+      <button class="btn btn-panel" onclick="togglePanel()">📋 指令</button>
+    </div>
+  </footer>
+
+  <!-- Command panel overlay -->
+  <div id="panel-overlay" class="panel-overlay" onclick="closePanel()"></div>
+
+  <!-- Command panel (slide-up) -->
+  <div id="cmd-panel" class="cmd-panel">
+    <div class="panel-header">
+      <span>指令面板</span>
+      <button class="panel-close" onclick="closePanel()">✕</button>
+    </div>
+    <div class="panel-body">
+
+      <div class="panel-section">
+        <div class="panel-label">暫存區操作</div>
+        <div class="panel-buttons">
+          <button onclick="sendCmd('/show')">顯示暫存區</button>
+          <button onclick="sendCmd('/send')">送出暫存區</button>
+          <button onclick="sendCmd('/concat')">壓縮合併</button>
+          <button onclick="sendCmd('/to_top')">置頂末筆</button>
+          <button onclick="promptCmd('/export', '匯出檔名:')">匯出</button>
+          <button onclick="promptCmd('/import', '匯入檔名:')">匯入</button>
+          <button onclick="sendCmd('/clear', ['buffer'])">清除暫存</button>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <div class="panel-label">對話管理</div>
+        <div class="panel-buttons">
+          <button onclick="promptCmd('/new', '新對話名稱:')">新建對話</button>
+          <button onclick="sendCmd('/list')">對話列表</button>
+          <button onclick="sendCmd('/history')">歷史紀錄</button>
+          <button onclick="promptCmd('/save', '儲存檔名 (空白用預設):')">儲存</button>
+          <button onclick="promptCmd('/load', '載入檔名:')">載入</button>
+          <button onclick="promptRename()">重新命名</button>
+          <button onclick="promptCmd('/delete', '刪除對話名稱:')">刪除</button>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <div class="panel-label">其他</div>
+        <div class="panel-buttons">
+          <button onclick="sendCmd('/clear')">清除畫面</button>
+          <button onclick="sendCmd('/help')">說明</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

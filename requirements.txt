@@ -8,3 +8,5 @@ rich
 fastapi
 uvicorn
 pydantic
+pydub
+cryptography
