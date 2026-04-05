@@ -5,36 +5,26 @@ from datetime import datetime, timezone
 
 
 class SessionManager:
-    """會話管理器（同步呼叫）。管理對話串的建立、切換、列表與權限記憶。"""
+    """會話管理器（同步呼叫）。管理對話串的建立、切換、列表。"""
 
     def __init__(self, config: configparser.ConfigParser):
         ws = config["WORKSPACE"]
         self._sessions_file = ws.get("sessions_file", "output/.sessions.json")
-        self._permissions_file = ws.get("permissions_file", "output/.permissions.json")
         self._sessions: dict = {}
-        self._permissions: dict = {}
         self._current_title: str | None = None
         self._load()
 
     # ── Persistence ────────────────────────────────────────────────────
 
     def _load(self):
-        for path, attr in [
-            (self._sessions_file, "_sessions"),
-            (self._permissions_file, "_permissions"),
-        ]:
-            os.makedirs(os.path.dirname(path), exist_ok=True)
-            if os.path.exists(path):
-                with open(path, "r", encoding="utf-8") as f:
-                    setattr(self, attr, json.load(f))
+        os.makedirs(os.path.dirname(self._sessions_file), exist_ok=True)
+        if os.path.exists(self._sessions_file):
+            with open(self._sessions_file, "r", encoding="utf-8") as f:
+                self._sessions = json.load(f)
 
     def _save_sessions(self):
         with open(self._sessions_file, "w", encoding="utf-8") as f:
             json.dump(self._sessions, f, ensure_ascii=False, indent=2)
-
-    def _save_permissions(self):
-        with open(self._permissions_file, "w", encoding="utf-8") as f:
-            json.dump(self._permissions, f, ensure_ascii=False, indent=2)
 
     # ── Session operations ─────────────────────────────────────────────
 
@@ -76,13 +66,3 @@ class SessionManager:
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             })
             self._save_sessions()
-
-    # ── Permission operations ──────────────────────────────────────────
-
-    def is_permitted(self, action: str) -> bool:
-        return self._permissions.get(action) == "always"
-
-    def set_permission(self, action: str, level: str):
-        if level == "approved_always":
-            self._permissions[action] = "always"
-            self._save_permissions()

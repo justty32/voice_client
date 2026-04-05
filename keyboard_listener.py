@@ -10,6 +10,7 @@ class KeyboardListener:
         self._key_signal_queue = key_signal_queue
         ctrl = config["CONTROL"]
         self._key_record = ctrl.get("key_record_toggle", "f8").lower()
+        self._key_command = ctrl.get("key_command_toggle", "f7").lower()
         self._key_quick_send = ctrl.get("key_quick_send", "f9").lower()
         self._key_force_stop_tts = ctrl.get("key_force_stop_tts", "f10").lower()
         self._listener: Listener | None = None
@@ -29,6 +30,8 @@ class KeyboardListener:
             key_name = key_name.lower()
             if key_name == self._key_record:
                 self._key_signal_queue.put("RECORD_TOGGLE")
+            elif key_name == self._key_command:
+                self._key_signal_queue.put("RECORD_COMMAND_TOGGLE")
             elif key_name == self._key_quick_send:
                 self._key_signal_queue.put("QUICK_SEND")
             elif key_name == self._key_force_stop_tts:

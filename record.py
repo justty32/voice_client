@@ -106,9 +106,17 @@ class Recorder:
             frames.append(data)
             now = time.monotonic()
 
-            # ── VAD ────────────────────────────────────────────────────
-            if _rms(data) >= self._silence_threshold:
+            # ── VAD & Volume ──────────────────────────────────────────
+            rms = _rms(data)
+            if rms >= self._silence_threshold:
                 last_sound = now
+            
+            # Send volume event periodically (e.g. every 0.1s)
+            if not hasattr(self, "_last_vol_time"):
+                self._last_vol_time = 0.0
+            if now - self._last_vol_time >= 0.1:
+                self._recorder_event_queue.put({"event": "volume", "rms": rms})
+                self._last_vol_time = now
 
             elapsed = now - chunk_start
             silence = now - last_sound

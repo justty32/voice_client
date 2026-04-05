@@ -2,6 +2,7 @@ import configparser
 import logging
 import queue
 import threading
+import time
 from queue import Empty, Queue
 
 from utils.llm_client import LLMClient
@@ -31,10 +32,10 @@ class SLMProcessor:
 
         slm = config["SLM"]
         self._enabled = slm.getboolean("enabled", True)
-        model = slm.get("model", "qwen2.5:1.5b")
+        self._model = slm.get("model", "qwen2.5:1.5b")
         base_url = slm.get("base_url", "http://localhost:11434")
 
-        self._llm = LLMClient(model, base_url)
+        self._llm = LLMClient(self._model, base_url)
         self._concat_prompt = load_prompt("slm_concat")
         self._summary_prompt = load_prompt("slm_summary")
 
@@ -66,11 +67,13 @@ class SLMProcessor:
                 pass
 
             try:
-                item = self._slm_input_queue.get(timeout=0.1)
+                item = self._slm_input_queue.get_nowait()
                 if item.get("type") == "text" and item.get("text", "").strip():
                     self._buffer.append(item["text"])
             except Empty:
                 pass
+
+            time.sleep(0.01)  # Keep the loop responsive but low CPU
 
     def _handle_cmd(self, cmd: dict):
         op = cmd.get("cmd")

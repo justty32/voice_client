@@ -59,7 +59,6 @@ def main():
     tts_input_queue       = queue.Queue()   # Main Loop → AudioPriorityPlayer
     tts_cmd_queue         = queue.Queue()   # Main Loop → AudioPriorityPlayer
     ui_event_queue        = queue.Queue()   # Main Loop → TuiRenderer
-    approval_result_queue = queue.Queue()   # TuiRenderer → Main Loop
 
     # ── Session Manager (sync, no Queue) ──────────────────────────────
     session_manager = SessionManager(config)
@@ -69,7 +68,7 @@ def main():
     # ── Instantiate modules ────────────────────────────────────────────
     keyboard_listener = KeyboardListener(config, key_signal_queue)
     terminal_input    = TerminalInput(config, cli_text_queue, cli_cmd_queue)
-    tui_renderer      = TuiRenderer(config, ui_event_queue, approval_result_queue)
+    tui_renderer      = TuiRenderer(config, ui_event_queue)
     recorder          = Recorder(config, recorder_cmd_queue, audio_queue, recorder_event_queue)
     voice_to_text     = VoiceToText(config, audio_queue, stt_output_queue)
     slm_processor     = SLMProcessor(config, slm_input_queue, slm_cmd_queue, slm_output_queue)
@@ -91,6 +90,7 @@ def main():
 
     # ── State ──────────────────────────────────────────────────────────
     is_recording = False
+    is_command_mode = False
 
     # ── Main Loop (Router) ─────────────────────────────────────────────
     try:
@@ -100,6 +100,11 @@ def main():
                 signal = key_signal_queue.get_nowait()
                 if signal == "RECORD_TOGGLE":
                     is_recording = not is_recording
+                    is_command_mode = False
+                    recorder_cmd_queue.put("START" if is_recording else "STOP")
+                elif signal == "RECORD_COMMAND_TOGGLE":
+                    is_recording = not is_recording
+                    is_command_mode = True if is_recording else is_command_mode
                     recorder_cmd_queue.put("START" if is_recording else "STOP")
                 elif signal == "QUICK_SEND":
                     slm_cmd_queue.put({"cmd": "flush", "msg_type": "TextChat"})
@@ -112,16 +117,23 @@ def main():
                 event = recorder_event_queue.get_nowait()
                 evt = event.get("event", "")
                 if evt == "recording_started":
-                    ui_event_queue.put(UiEvent("status", "錄音中"))
+                    is_recording = True
+                    ui_event_queue.put(UiEvent("status", "錄音中" if not is_command_mode else "語音指令中"))
                 elif evt == "recording_stopped":
+                    is_recording = False
                     ui_event_queue.put(UiEvent("status", "處理中"))
+                # Volume events are no longer needed by the UI
 
             # ── C. STT output → UI + SLM ──────────────────────────────
             while not stt_output_queue.empty():
                 text = stt_output_queue.get_nowait()
                 if text.strip():
-                    ui_event_queue.put(UiEvent("message", {"role": "voice", "text": text}))
-                    slm_input_queue.put({"type": "text", "text": text, "msg_type": "VoiceChat"})
+                    if is_command_mode:
+                        ui_event_queue.put(UiEvent("message", {"role": "system", "text": f"[語音指令] {text}"}))
+                        _handle_voice_command(text, session_manager, ui_event_queue, slm_cmd_queue, tts_cmd_queue)
+                    else:
+                        ui_event_queue.put(UiEvent("message", {"role": "voice", "text": text}))
+                        slm_input_queue.put({"type": "text", "text": text, "msg_type": "VoiceChat"})
 
             # ── D. CLI text → SLM ─────────────────────────────────────
             while not cli_text_queue.empty():
@@ -170,14 +182,6 @@ def main():
                 response = recv_queue.get_nowait()
                 _route_response(response, ui_event_queue, tts_input_queue, slm_cmd_queue,
                                 send_queue, session_manager)
-
-            # ── H. Approval results → HTTP ─────────────────────────────
-            while not approval_result_queue.empty():
-                result = approval_result_queue.get_nowait()
-                action = result.get("action", "")
-                if result.get("result") == "approved_always":
-                    session_manager.set_permission(action, "approved_always")
-                send_queue.put(result)
 
             time.sleep(0.05)
 
@@ -257,14 +261,6 @@ def _route_response(
                                "title": session_manager.current_title})
         ui_event_queue.put(UiEvent("status", "待機"))
 
-    elif resp_type == "ApprovalRequest":
-        request_id = response.get("request_id", "")
-        action = response.get("action", "")
-        if session_manager.is_permitted(action):
-            send_queue.put({"request_id": request_id, "result": "approved_once"})
-        else:
-            ui_event_queue.put(UiEvent("approval_request", response))
-
     elif resp_type == "StatusUpdate":
         text = response.get("text", "")
         ui_event_queue.put(UiEvent("status", text))
@@ -274,6 +270,39 @@ def _route_response(
         msg = response.get("message", "Unknown error")
         ui_event_queue.put(UiEvent("message", {"role": "system", "text": f"[錯誤] {msg}"}))
         tts_input_queue.put({"text": f"發生錯誤：{msg}", "priority": "high"})
+
+
+def _handle_voice_command(
+    text: str,
+    session_manager: SessionManager,
+    ui_event_queue: queue.Queue,
+    slm_cmd_queue: queue.Queue,
+    tts_cmd_queue: queue.Queue
+):
+    """將語音辨識出的文字解析為斜線指令並路由。"""
+    text = text.lower().strip()
+    # 簡單的關鍵字對應
+    if "new" in text or "新建" in text or "開啟對話" in text:
+        # 嘗試擷取名稱，例如 "new session apple" -> "session apple"
+        parts = text.split()
+        args = parts[1:] if len(parts) > 1 else []
+        _route_cli_cmd({"cmd": "/new", "args": args}, session_manager, ui_event_queue, slm_cmd_queue, tts_cmd_queue)
+    elif "switch" in text or "切換" in text:
+        parts = text.split()
+        args = parts[1:] if len(parts) > 1 else []
+        _route_cli_cmd({"cmd": "/switch", "args": args}, session_manager, ui_event_queue, slm_cmd_queue, tts_cmd_queue)
+    elif "list" in text or "列表" in text or "清單" in text:
+        _route_cli_cmd({"cmd": "/list"}, session_manager, ui_event_queue, slm_cmd_queue, tts_cmd_queue)
+    elif "send" in text or "發送" in text or "傳送" in text:
+        _route_cli_cmd({"cmd": "/send"}, session_manager, ui_event_queue, slm_cmd_queue, tts_cmd_queue)
+    elif "stop" in text or "停止" in text:
+        _route_cli_cmd({"cmd": "/stop"}, session_manager, ui_event_queue, slm_cmd_queue, tts_cmd_queue)
+    elif "show" in text or "顯示" in text:
+        _route_cli_cmd({"cmd": "/show"}, session_manager, ui_event_queue, slm_cmd_queue, tts_cmd_queue)
+    elif "clear" in text or "清除" in text:
+        _route_cli_cmd({"cmd": "/clear"}, session_manager, ui_event_queue, slm_cmd_queue, tts_cmd_queue)
+    else:
+        ui_event_queue.put(UiEvent("message", {"role": "system", "text": f"無法識別的語音指令: {text}"}))
 
 
 if __name__ == "__main__":
