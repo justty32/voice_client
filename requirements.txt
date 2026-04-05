@@ -1,0 +1,7 @@
+requests
+numpy
+pyaudio
+faster-whisper
+pyttsx3
+pynput
+rich

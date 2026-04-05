@@ -214,3 +214,12 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Workspace specific
+.claude/
+output/*.json
+output/*.log
+output/*.txt
+output/deleted/
+output/failed/
+!output/.gitkeep
