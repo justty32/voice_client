@@ -5,3 +5,6 @@ faster-whisper
 pyttsx3
 pynput
 rich
+fastapi
+uvicorn
+pydantic
