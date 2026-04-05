@@ -24,8 +24,10 @@ class SummaryGenerator:
         self._enabled = slm.getboolean("enabled", True)
         self._model = slm.get("model", "gemma3:1b")
         base_url = slm.get("base_url", "http://localhost:11434")
+        api_key = slm.get("api_key", "")
+        retry = int(slm.get("retry", "3"))
 
-        self._llm = LLMClient(self._model, base_url)
+        self._llm = LLMClient(self._model, base_url, api_key=api_key, max_retries=retry)
         self._summary_prompt = load_prompt("slm_summary")
 
         self._running = False

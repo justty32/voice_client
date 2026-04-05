@@ -79,7 +79,7 @@ def main():
     voice_to_text     = VoiceToText(config, audio_queue, stt_output_queue)
     text_accumulator  = TextAccumulator(config, acc_input_queue, acc_cmd_queue, acc_output_queue)
     summary_generator = SummaryGenerator(config, summary_queue, summary_output_queue)
-    http_client       = HttpClient(config, send_queue, recv_queue)
+    http_client       = HttpClient(config, send_queue, recv_queue, session_manager)
     tts_player        = AudioPriorityPlayer(config, tts_input_queue, tts_cmd_queue)
 
     # ── Start all modules ──────────────────────────────────────────────

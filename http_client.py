@@ -22,9 +22,10 @@ class HttpClient:
     - SERVER.enabled = false → 本地 LLM 直接回應
     """
 
-    def __init__(self, config: configparser.ConfigParser, send_queue: Queue, recv_queue: Queue):
+    def __init__(self, config: configparser.ConfigParser, send_queue: Queue, recv_queue: Queue, session_manager: "SessionManager"):
         self._send_queue = send_queue
         self._recv_queue = recv_queue
+        self._session_manager = session_manager
 
         srv = config["SERVER"]
         self._enabled = srv.getboolean("enabled", False)
@@ -36,10 +37,12 @@ class HttpClient:
         self._failed_dir = ws.get("failed_dir", "output/failed")
 
         llm = config["LLM"]
+        llm_retry = int(llm.get("retry", str(self._retry)))
         self._llm = LLMClient(
             model=llm.get("model", "qwen2.5:7b"),
             base_url=llm.get("base_url", "http://localhost:11434"),
             api_key=llm.get("api_key", ""),
+            max_retries=llm_retry,
         )
         self._system_prompt = load_prompt("llm_system")
 
@@ -100,8 +103,25 @@ class HttpClient:
         content = payload.get("Content", "")
         if not content:
             return None
+        
+        # 獲取歷史紀錄並格式化
+        session = self._session_manager.get_current_session()
+        formatted_history = ""
+        if session and "history" in session:
+            # 限制歷史紀錄長度，避免過長導致 429
+            # 這裡我們手動將對話串接成一段文字，讓模型理解上下文
+            for msg in session["history"][-6:-1]: # 取最後幾筆作為上下文，排除剛加入的一筆
+                role_label = "使用者" if msg["role"] == "user" else "AI助手"
+                formatted_history += f"{role_label}: {msg['content']}\n"
+        
+        # 組合上下文與當前問題
+        if formatted_history:
+            user_input = f"以下是之前的對話背景：\n{formatted_history}\n目前的對話內容：{content}"
+        else:
+            user_input = content
+            
         try:
-            reply = self._llm.chat(self._system_prompt, content)
+            reply = self._llm.chat(self._system_prompt, user_input)
             return {
                 "type": "ChatReply",
                 "Title": payload.get("Title", ""),
