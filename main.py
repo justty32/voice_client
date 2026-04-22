@@ -94,6 +94,14 @@ def main():
     tts_player.start()
 
     ui_event_queue.put(UiEvent("status", "待機"))
+    if not keyboard_listener.is_active():
+        ui_event_queue.put(UiEvent("message", {
+            "role": "system",
+            "text": (
+                f"全域熱鍵已停用（{keyboard_listener.inactive_reason()}）。\n"
+                "請在終端輸入文字後按 Enter 送出；或使用 /send、/stop、/show 等指令。"
+            ),
+        }))
     log.info("Voice Client started. Session: %s", session_manager.current_title)
 
     # ── State ──────────────────────────────────────────────────────────
@@ -318,6 +326,7 @@ def _route_response(
 ) -> str | None:
     resp_type = response.get("type", "ChatReply")
     summary_threshold = config.getint("SLM", "summary_threshold", fallback=20)
+    slm_enabled = config.getboolean("SLM", "enabled", fallback=True)
 
     if resp_type == "ChatReply":
         content = response.get("Content", {})
@@ -326,9 +335,9 @@ def _route_response(
             session_manager.add_message("assistant", full_response)
             display = full_response
             ui_event_queue.put(UiEvent("message", {"role": "assistant", "text": display}))
-            
-            if len(full_response) < summary_threshold:
-                # 少於 threshold 字，直接播放，不生成摘要
+
+            # SLM 停用時不走摘要流程；短回覆也直接播原文
+            if not slm_enabled or len(full_response) < summary_threshold:
                 tts_input_queue.put({"text": full_response, "priority": "medium"})
             else:
                 # 達到 threshold 字，放入摘要佇列

@@ -70,14 +70,12 @@ class HttpClient:
                 self._recv_queue.put(response)
 
     def _dispatch(self, payload: dict) -> dict | None:
-        # Approval results and other non-chat payloads have no "Content"
-        if "Content" not in payload:
-            if self._enabled:
-                return self._post_http(payload)
-            return None
-
+        # 轉發模式：所有 payload 一律送給伺服器（含 approval 等非 chat payload）
         if self._enabled:
             return self._post_http(payload)
+        # 本地模式：只處理有 Content 的聊天訊息，其它靜默略過
+        if "Content" not in payload:
+            return None
         return self._call_local(payload)
 
     # ── HTTP mode ──────────────────────────────────────────────────────

@@ -17,6 +17,7 @@ import configparser
 import heapq
 import logging
 import multiprocessing as mp
+import sys
 import threading
 import time
 from queue import Empty, Queue
@@ -24,20 +25,28 @@ from queue import Empty, Queue
 log = logging.getLogger(__name__)
 
 
+def _pick_tts_driver() -> str | None:
+    if sys.platform == "win32":
+        return "sapi5"
+    if sys.platform == "darwin":
+        return "nsss"
+    return "espeak"
+
+
 # ── TTS Worker (runs in subprocess) ───────────────────────────────────────────
 
-def _tts_worker(text: str, rate: int, volume: float):
+def _tts_worker(text: str, rate: int, volume: float, driver: str | None):
     """在獨立子 process 中合成並播放語音。此函式必須位於模組頂層以支援 spawn。"""
     try:
         import pyttsx3
-        engine = pyttsx3.init()
+        engine = pyttsx3.init(driverName=driver) if driver else pyttsx3.init()
         engine.setProperty("rate", rate)
         engine.setProperty("volume", volume)
         engine.say(text)
         engine.runAndWait()
         engine.stop()
     except Exception as exc:
-        pass  # 子 process 不寫 log，靜默失敗
+        print(f"[tts-worker] {type(exc).__name__}: {exc}", file=sys.stderr)
 
 
 # ── Dispatcher ────────────────────────────────────────────────────────────────
@@ -55,6 +64,10 @@ class AudioPriorityPlayer:
         tts = config["TTS"]
         self._rate = int(tts.get("rate", 180))
         self._volume = float(tts.get("volume", 1.0))
+        self._driver = _pick_tts_driver()
+
+        # 顯式用 spawn，讓 Linux/macOS 也與 Windows 行為一致，避免 fork 繼承 PyAudio / Whisper 等資源
+        self._ctx = mp.get_context("spawn")
 
         # heapq: (priority_val, counter, item_dict)
         self._heap: list = []
@@ -121,9 +134,9 @@ class AudioPriorityPlayer:
         text = item.get("text", "").strip()
         if not text:
             return
-        self._current = mp.Process(
+        self._current = self._ctx.Process(
             target=_tts_worker,
-            args=(text, self._rate, self._volume),
+            args=(text, self._rate, self._volume, self._driver),
             daemon=True,
         )
         self._current.start()

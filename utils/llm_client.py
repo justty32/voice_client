@@ -49,24 +49,27 @@ class LLMClient:
                         log.error("Rate limited (429). No retries left.")
                         raise
                     wait_time = self._parse_retry_after(response)
-                    log.warning(f"Rate limited (429). Waiting {wait_time}s before retry {attempt + 1}/{self._max_retries}")
+                    log.warning("Rate limited (429). Waiting %ss before retry %d/%d",
+                                wait_time, attempt + 1, self._max_retries)
                     time.sleep(wait_time)
                     continue
 
                 if status_code and 500 <= status_code < 600:
                     if attempt >= self._max_retries:
-                        log.error(f"Server error ({status_code}). No retries left.")
+                        log.error("Server error (%s). No retries left.", status_code)
                         raise
                     wait_time = 2 ** attempt
-                    log.warning(f"Server error ({status_code}). Retrying in {wait_time}s... ({attempt + 1}/{self._max_retries})")
+                    log.warning("Server error (%s). Retrying in %ds... (%d/%d)",
+                                status_code, wait_time, attempt + 1, self._max_retries)
                     time.sleep(wait_time)
                     continue
 
                 if attempt >= self._max_retries:
-                    log.error(f"LLM API call failed after {self._max_retries} retries: {e}")
+                    log.error("LLM API call failed after %d retries: %s", self._max_retries, e)
                     raise
 
-                log.warning(f"Request failed: {e}. Retrying in 1s... ({attempt + 1}/{self._max_retries})")
+                log.warning("Request failed: %s. Retrying in 1s... (%d/%d)",
+                            e, attempt + 1, self._max_retries)
                 time.sleep(1.0)
 
         if last_exc:
@@ -89,7 +92,7 @@ class LLMClient:
             timeout=self._timeout,
         )
         if resp.status_code != 200:
-            log.debug(f"API error response: {resp.text}")
+            log.debug("API error response: %s", resp.text)
         resp.raise_for_status()
         return resp.json()["choices"][0]["message"]["content"]
 

@@ -13,6 +13,8 @@ import json
 import logging
 import os
 import queue
+import shutil
+import socket
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
@@ -48,8 +50,24 @@ def _setup_logging(cfg):
     )
 
 
-def _to_wav(data: bytes) -> io.BytesIO | None:
-    """瀏覽器 MediaRecorder 輸出（WebM/MP4）→ 16kHz mono WAV。需要 ffmpeg。"""
+_FFMPEG_AVAILABLE: bool = False
+_FFMPEG_MISSING_HINT = (
+    "ffmpeg 未安裝。Linux: sudo apt install ffmpeg ｜ macOS: brew install ffmpeg "
+    "｜ Windows: choco install ffmpeg"
+)
+
+
+def _check_ffmpeg() -> bool:
+    """啟動前檢查 ffmpeg 是否可用；pydub 依賴它做音訊解碼。"""
+    return shutil.which("ffmpeg") is not None or shutil.which("avconv") is not None
+
+
+def _to_wav(data: bytes) -> tuple[io.BytesIO | None, str | None]:
+    """瀏覽器 MediaRecorder 輸出（WebM/MP4）→ 16kHz mono WAV。需要 ffmpeg。
+    回傳 (buffer, error_msg)；成功時 error_msg 為 None。
+    """
+    if not _FFMPEG_AVAILABLE:
+        return None, _FFMPEG_MISSING_HINT
     try:
         from pydub import AudioSegment
         seg = AudioSegment.from_file(io.BytesIO(data))
@@ -57,10 +75,14 @@ def _to_wav(data: bytes) -> io.BytesIO | None:
         buf = io.BytesIO()
         seg.export(buf, format="wav")
         buf.seek(0)
-        return buf
+        return buf, None
+    except FileNotFoundError as exc:
+        # pydub 呼叫 ffmpeg 時找不到可執行檔
+        log.error("Audio conversion: ffmpeg missing: %s", exc)
+        return None, _FFMPEG_MISSING_HINT
     except Exception as exc:
         log.error("Audio conversion failed: %s", exc)
-        return None
+        return None, f"音訊解碼失敗：{exc}"
 
 
 # ── Module-level state (single-user server) ────────────────────────────────
@@ -90,6 +112,7 @@ _summary_gen      = SummaryGenerator(_cfg, _summary_queue, _summary_output_queue
 _http_client      = HttpClient(_cfg, _send_queue, _recv_queue, _session_manager)
 
 _summary_threshold = _cfg.getint("SLM", "summary_threshold", fallback=20)
+_slm_enabled = _cfg.getboolean("SLM", "enabled", fallback=True)
 
 
 # ── Push helpers ───────────────────────────────────────────────────────────
@@ -114,6 +137,13 @@ def _push_system(text: str):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global _FFMPEG_AVAILABLE
+    _FFMPEG_AVAILABLE = _check_ffmpeg()
+    if _FFMPEG_AVAILABLE:
+        log.info("ffmpeg available — audio upload will work.")
+    else:
+        log.error("ffmpeg NOT found. %s", _FFMPEG_MISSING_HINT)
+
     _voice_to_text.start()
     _text_accumulator.start()
     _summary_gen.start()
@@ -173,11 +203,13 @@ async def websocket_handler(ws: WebSocket):
 def _handle_audio(data: bytes):
     """在 thread 中執行音訊轉換（pydub 為同步操作）。"""
     _push_status("處理中")
-    wav = _to_wav(data)
+    wav, err = _to_wav(data)
     if wav:
         _audio_queue.put(wav)
         log.debug("Audio queued (%d bytes raw)", len(data))
     else:
+        if err:
+            _push_msg("error", f"[音訊錯誤] {err}")
         _push_status("待機")
 
 
@@ -299,7 +331,8 @@ def _handle_response(response: dict):
         if full:
             _session_manager.add_message("assistant", full)
             _push_msg("assistant", full)
-            if len(full) < _summary_threshold:
+            # SLM 停用時不走摘要流程；短回覆也直接播原文
+            if not _slm_enabled or len(full) < _summary_threshold:
                 _push_tts(full, "medium")
             else:
                 _summary_queue.put({"cmd": "summary", "text": full,
@@ -377,6 +410,38 @@ async def _output_pusher(ws: WebSocket):
         await asyncio.sleep(0.05)
 
 
+# ── Network helpers ────────────────────────────────────────────────────────
+
+def _get_lan_ip() -> str:
+    """用 UDP socket 取得本機對外 LAN IP（不實際送封包）。
+    避開 `gethostbyname(gethostname())` 在 Linux 上被 `/etc/hosts` 的
+    `127.0.1.1 hostname` 欺騙成 loopback 的問題。
+    """
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.settimeout(0.5)
+        # 8.8.8.8:80 只是路由選擇用的目的，不會真的送封包
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        if ip and not ip.startswith("127."):
+            return ip
+    except Exception:
+        pass
+    finally:
+        try:
+            s.close()
+        except Exception:
+            pass
+    # fallback
+    try:
+        ip = socket.gethostbyname(socket.gethostname())
+        if ip and not ip.startswith("127."):
+            return ip
+    except Exception:
+        pass
+    return "127.0.0.1"
+
+
 # ── SSL cert generation ────────────────────────────────────────────────────
 
 def _ensure_self_signed_cert(cert_path: str, key_path: str) -> bool:
@@ -389,7 +454,6 @@ def _ensure_self_signed_cert(cert_path: str, key_path: str) -> bool:
     try:
         import datetime
         import ipaddress
-        import socket
 
         from cryptography import x509
         from cryptography.hazmat.primitives import hashes, serialization
@@ -401,10 +465,7 @@ def _ensure_self_signed_cert(cert_path: str, key_path: str) -> bool:
         key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 
         # 取得本機 IP，加入 SAN 讓手機可以用 IP 連線
-        try:
-            local_ip = socket.gethostbyname(socket.gethostname())
-        except Exception:
-            local_ip = "127.0.0.1"
+        local_ip = _get_lan_ip()
 
         subject = issuer = x509.Name([
             x509.NameAttribute(NameOID.COMMON_NAME, "VoiceClient"),
@@ -444,6 +505,11 @@ def _ensure_self_signed_cert(cert_path: str, key_path: str) -> bool:
                 serialization.PrivateFormat.TraditionalOpenSSL,
                 serialization.NoEncryption(),
             ))
+        # 私鑰僅限擁有者讀寫（POSIX）。Windows 上 chmod 幾乎 no-op 但不會壞。
+        try:
+            os.chmod(key_path, 0o600)
+        except OSError as exc:
+            log.warning("chmod 600 on %s failed: %s", key_path, exc)
         with open(cert_path, "wb") as f:
             f.write(cert.public_bytes(serialization.Encoding.PEM))
 
@@ -461,8 +527,6 @@ def _ensure_self_signed_cert(cert_path: str, key_path: str) -> bool:
 # ── Entry point ────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    import socket as _socket
-
     host = _cfg.get("MOBILE", "host", fallback="0.0.0.0")
     port = _cfg.getint("MOBILE", "port", fallback=8080)
     use_ssl = _cfg.getboolean("MOBILE", "ssl", fallback=True)
@@ -481,10 +545,7 @@ if __name__ == "__main__":
         scheme = "http"
 
     # 印出本機 IP 方便手機連線
-    try:
-        local_ip = _socket.gethostbyname(_socket.gethostname())
-    except Exception:
-        local_ip = "127.0.0.1"
+    local_ip = _get_lan_ip()
 
     log.info("=" * 50)
     log.info("Mobile server ready!")
