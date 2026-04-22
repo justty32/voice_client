@@ -4,7 +4,8 @@
       "Bash(xargs wc:*)",
       "Bash(git checkout:*)",
       "Bash(python -c \"import ast, sys; ast.parse\\(open\\('mobile_server.py'\\).read\\(\\)\\); print\\('syntax OK'\\)\")",
-      "Bash(python -c \"import ast; ast.parse\\(open\\('mobile_server.py', encoding='utf-8'\\).read\\(\\)\\); print\\('syntax OK'\\)\")"
+      "Bash(python -c \"import ast; ast.parse\\(open\\('mobile_server.py', encoding='utf-8'\\).read\\(\\)\\); print\\('syntax OK'\\)\")",
+      "Bash(grep -rn \"output/\\\\|output\\\\\\\\\\\\\\\\\" /c/code/mine/voice_client --include=\"*.py\")"
     ]
   }
 }
