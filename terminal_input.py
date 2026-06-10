@@ -4,7 +4,7 @@ from queue import Queue
 
 EXIT_SIGNAL = "__EXIT__"
 
-_SLASH_COMMANDS = {"/new", "/switch", "/list", "/exit", "/help", "/clear", "/show", "/send", "/stop", "/export", "/import", "/delete", "/save", "/concat", "/to_top", "/load", "/rename", "/history", "/ws"}
+_SLASH_COMMANDS = {"/new", "/switch", "/list", "/exit", "/help", "/clear", "/show", "/send", "/stop", "/export", "/import", "/delete", "/save", "/concat", "/to_top", "/load", "/rename", "/history", "/ws", "/copy", "/paste"}
 
 
 class TerminalInput:

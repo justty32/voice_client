@@ -76,7 +76,8 @@
 | `/move <i> <j>` | 把第 i 筆移到第 j 位 | `move(i-1, j-1)` |
 | `/totop [i]` | 把第 i 筆（預設最後一筆）移到最前 | `move_to_top()` |
 | `/concat` | 壓縮為單一筆 | `concat_all()` |
-| `/export <file>` / `/import <file>` | 匯出入 | `export()` / `import_file()` |
+| `/export <file>` / `/import <file>` | 匯出入檔案 | `export()` / `import_file()` |
+| `/copy` / `/paste` | 與系統剪貼簿交換（見 §4.6） | `flatten()` / `append()` |
 | `/send` | flush 送出（**僅當前為 `buffer` 時有效**，見 §4.3） | `flatten()` |
 
 ### 4.3 待定案：與舊指令的衝突
@@ -101,6 +102,19 @@
 釐清層級：**chat 其實是「多個 chat 工作區」**，每個 session 是一個 chat 工作區。Session 層指令是「工作區集合」上的 CRUD，維持既有命名：
 
 - `/new`、`/switch`、`/list`、`/rename`、`/save`、`/load`、`/history`、`/delete <title>`。
+
+### 4.6 剪貼簿支援
+
+統一指令 `/copy`、`/paste` 作用在**當前工作區**，與系統剪貼簿交換文字：
+
+- `/copy`：把當前工作區內容（每筆一行，以換行串接）複製到系統剪貼簿。
+  - buffer → 透過 acc 佇列在其執行緒內複製；stt/chat → 控制器直接複製（chat 複製對話歷史文字）。
+- `/paste`：把剪貼簿文字貼到當前工作區（每個非空行為一筆，追加至末尾）。
+  - buffer / stt 支援；chat 不支援貼上（提示切換工作區）。
+- 跨平台後端（`utils/clipboard.py`）：優先 `pyperclip`，否則退回 `pbcopy/pbpaste`（mac）、
+  `clip`/`Get-Clipboard`（Win）、`wl-copy/wl-paste` 或 `xclip` 或 `xsel`（Linux）。
+  全不可用時**優雅降級**：提示安裝方式，不崩潰。
+- 手機端（mobile）的剪貼簿改用瀏覽器 `navigator.clipboard`，於 ④c 處理（與桌面後端不同機制）。
 
 ### 4.5 相容性原則
 

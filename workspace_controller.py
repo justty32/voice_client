@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from utils import clipboard
 from workspace import Workspace
 
 
@@ -101,3 +102,36 @@ class WorkspaceController:
         if self.current == "buffer":
             return WSResult(acc_cmds=[{"cmd": "flush", "msg_type": "TextChat"}])
         return WSResult(messages=[("system", f"[系統] /send 僅適用於 buffer 工作區（當前: {self.current}）。")])
+
+    # ── /copy ───────────────────────────────────────────────────────────
+    def handle_copy(self) -> WSResult:
+        """把當前工作區內容複製到系統剪貼簿。"""
+        if self.current == "buffer":
+            return WSResult(acc_cmds=[{"cmd": "copy"}])
+        if self.current == "stt":
+            if self.stt.is_empty():
+                return WSResult(messages=[("system", "[stt 工作區是空的，沒有可複製的內容]")])
+            text = self.stt.flatten(seg_sep=" ", entry_sep="\n")
+            ok, err = clipboard.copy(text)
+            msg = f"[系統] 已複製 stt 工作區 {self.stt.count()} 筆到剪貼簿。" if ok else f"[錯誤] {err}"
+            return WSResult(messages=[("system", msg)])
+        # chat
+        ok, err = clipboard.copy(self._sm.get_history())
+        msg = "[系統] 已複製對話歷史到剪貼簿。" if ok else f"[錯誤] {err}"
+        return WSResult(messages=[("system", msg)])
+
+    # ── /paste ──────────────────────────────────────────────────────────
+    def handle_paste(self) -> WSResult:
+        """把剪貼簿內容貼到當前工作區（每個非空行為一筆，追加至末尾）。"""
+        if self.current == "buffer":
+            return WSResult(acc_cmds=[{"cmd": "paste"}])
+        if self.current == "stt":
+            ok, data = clipboard.paste()
+            if not ok:
+                return WSResult(messages=[("system", f"[錯誤] {data}")])
+            lines = [ln.strip() for ln in data.splitlines() if ln.strip()]
+            for ln in lines:
+                self.stt.append(ln)
+            return WSResult(messages=[("system", f"[系統] 已從剪貼簿貼上 {len(lines)} 筆到 stt 工作區。")])
+        # chat
+        return WSResult(messages=[("system", "[系統] chat 工作區不支援貼上（請切換到 buffer 或 stt）。")])

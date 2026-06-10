@@ -321,8 +321,12 @@ def _route_cli_cmd(cmd_item: dict, session_manager: SessionManager, ui_event_que
         ui_event_queue.put(UiEvent("status", "待機"))
     elif cmd == "/show":
         _apply_ws_result(wsc.handle_show(), ui_event_queue, acc_cmd_queue)
+    elif cmd == "/copy":
+        _apply_ws_result(wsc.handle_copy(), ui_event_queue, acc_cmd_queue)
+    elif cmd == "/paste":
+        _apply_ws_result(wsc.handle_paste(), ui_event_queue, acc_cmd_queue)
     elif cmd == "/help":
-        help_text = "/new [title]  /switch [title]  /list  /delete [title]  /save [file]  /load [file]  /rename [old] [new]  /history  /ws [name]  /show  /clear [ui|stt|buffer|chat]  /concat  /to_top  /send  /export  /import  /stop  /help  /exit"
+        help_text = "/new [title]  /switch [title]  /list  /delete [title]  /save [file]  /load [file]  /rename [old] [new]  /history  /ws [name]  /show  /clear [ui|stt|buffer|chat]  /copy  /paste  /concat  /to_top  /send  /export  /import  /stop  /help  /exit"
         ui_event_queue.put(UiEvent("message", {"role": "system", "text": help_text}))
     elif cmd == "unknown":
         ui_event_queue.put(UiEvent("message", {"role": "system", "text": f"未知指令: {args[0] if args else ''}"}))
@@ -437,6 +441,10 @@ def _handle_voice_command(
                 args = parts[i+1:]
                 break
         _route_cli_cmd({"cmd": "/import", "args": args}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue, wsc, acc)
+    elif "copy" in text or "複製" in text:
+        _route_cli_cmd({"cmd": "/copy"}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue, wsc, acc)
+    elif "paste" in text or "貼上" in text:
+        _route_cli_cmd({"cmd": "/paste"}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue, wsc, acc)
     elif "stop" in text or "停止" in text:
         _route_cli_cmd({"cmd": "/stop"}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue, wsc, acc)
     elif "show" in text or "顯示" in text:

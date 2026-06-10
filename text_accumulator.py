@@ -5,6 +5,7 @@ import threading
 import time
 from queue import Empty, Queue
 
+from utils import clipboard
 from workspace import Workspace
 
 log = logging.getLogger(__name__)
@@ -94,6 +95,10 @@ class TextAccumulator:
             self._concat()
         elif op == "to_top":
             self._to_top()
+        elif op == "copy":
+            self._copy()
+        elif op == "paste":
+            self._paste()
 
     def _get_path(self, filename: str | None, is_import: bool = False) -> str | None:
         if not filename:
@@ -177,6 +182,25 @@ class TextAccumulator:
             return
         self._output_queue.put({"type": "buffer_peek", "text": "[系統] 已將最後一筆文字移至最前方。"})
         log.info("Moved last item to top.")
+
+    def _copy(self):
+        if self._ws.is_empty():
+            self._output_queue.put({"type": "buffer_peek", "text": "[暫存區是空的，沒有可複製的內容]"})
+            return
+        text = self._ws.flatten(seg_sep=" ", entry_sep="\n")
+        ok, err = clipboard.copy(text)
+        msg = f"[系統] 已複製暫存區 {self._ws.count()} 筆到剪貼簿。" if ok else f"[錯誤] {err}"
+        self._output_queue.put({"type": "buffer_peek", "text": msg})
+
+    def _paste(self):
+        ok, data = clipboard.paste()
+        if not ok:
+            self._output_queue.put({"type": "buffer_peek", "text": f"[錯誤] {data}"})
+            return
+        lines = [ln.strip() for ln in data.splitlines() if ln.strip()]
+        for ln in lines:
+            self._ws.append(ln)
+        self._output_queue.put({"type": "buffer_peek", "text": f"[系統] 已從剪貼簿貼上 {len(lines)} 筆到暫存區。"})
 
     def _flush(self):
         if self._ws.is_empty():
