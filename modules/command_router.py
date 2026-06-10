@@ -109,6 +109,10 @@ class CommandRouter(TunnelModule):
         elif cmd == "/send":
             self._handle_send()
         # ── 對話管理指令（Task 4）────────────────────────────────────────
+        elif cmd in ("/new", "/switch", "/list", "/delete", "/rename",
+                     "/history", "/save", "/load") and self._sm is None:
+            # 防禦：未接 SessionManager 時給友善訊息而非 AttributeError
+            self._ui_msg("[系統] 對話管理功能尚未接入。")
         elif cmd == "/new":
             self._handle_new(cmd_item.get("args", []))
         elif cmd == "/switch":
