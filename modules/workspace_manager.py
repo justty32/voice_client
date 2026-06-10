@@ -36,7 +36,11 @@ class WorkspaceManager(TunnelModule):
 
     # ── 操作 ──────────────────────────────────────────────────────
     def switch(self, name: str) -> bool:
-        """切換當前工作區；未知名稱回 False 且不變更。"""
+        """切換當前工作區；未知名稱回 False 且不變更。
+
+        可能由其它執行緒（CommandRouter）呼叫：_current 僅為單一屬性
+        指派且永遠指向既存的 key，在 CPython（GIL）下無需加鎖。
+        """
         if name not in self._spaces:
             return False
         self._current = name
