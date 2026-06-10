@@ -77,7 +77,7 @@
 | `/totop [i]` | 把第 i 筆（預設最後一筆）移到最前 | `move_to_top()` |
 | `/concat` | 壓縮為單一筆 | `concat_all()` |
 | `/export <file>` / `/import <file>` | 匯出入 | `export()` / `import_file()` |
-| `/send` | flush 當前工作區送出 | 見 4.4 |
+| `/send` | flush 送出（**僅當前為 `buffer` 時有效**，見 §4.3） | `flatten()` |
 
 ### 4.3 待定案：與舊指令的衝突
 
@@ -92,7 +92,9 @@
 2. **`/delete <title>`**：舊行為 = 刪除 session（屬 chat 工作區集合的操作）。
    - 建議：session 層維持 `/delete <title>`；工作區內單筆刪除用新指令 `/del <i>`，避免撞名。
 3. **`/send`**：目前只對 buffer 有意義。
-   - 建議：當前為 `buffer` → 照舊送出；當前為 `stt` → 定義為「提升（promote）所選/全部 entry 到 buffer」；當前為 `chat` → 不允許（提示）。
+   - **定案**：`/send` **僅在當前工作區為 `buffer` 時有效**，行為與現在相同（flush buffer 送出）。
+   - 當前為 `stt` 或 `chat` 時 → 不執行，提示「`/send` 僅適用於 buffer 工作區」。
+   - （`stt → buffer` 的搬移交給 §4.2 的 `/move`/匯出入或未來的 promote 指令，不綁在 `/send`。）
 
 ### 4.4 Session = chat 工作區的集合
 
