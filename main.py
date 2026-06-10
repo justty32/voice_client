@@ -150,6 +150,12 @@ def main():
                 elif evt == "recording_stopped":
                     is_recording = False
                     ui_event_queue.put(UiEvent("status", "處理中"))
+                elif evt == "error":
+                    is_recording = False
+                    is_command_mode = False
+                    msg = event.get("message", "未知錄音錯誤")
+                    ui_event_queue.put(UiEvent("message", {"role": "system", "text": f"[錄音錯誤] {msg}"}))
+                    ui_event_queue.put(UiEvent("status", "待機"))
 
             # ── C. STT output → UI + SLM ──────────────────────────────
             while not stt_output_queue.empty():

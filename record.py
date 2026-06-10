@@ -53,8 +53,10 @@ class Recorder:
     # ── Worker ─────────────────────────────────────────────────────────
 
     def _worker(self):
-        pa = pyaudio.PyAudio()
+        pa = None
+        stream = None
         try:
+            pa = pyaudio.PyAudio()
             stream = pa.open(
                 format=pyaudio.paInt16,
                 channels=self._channels,
@@ -66,12 +68,14 @@ class Recorder:
         except Exception as exc:
             self._recorder_event_queue.put({"event": "error", "message": str(exc)})
         finally:
-            try:
-                stream.stop_stream()
-                stream.close()
-            except Exception:
-                pass
-            pa.terminate()
+            if stream is not None:
+                try:
+                    stream.stop_stream()
+                    stream.close()
+                except Exception:
+                    pass
+            if pa is not None:
+                pa.terminate()
 
     def _loop(self, stream, pa):
         recording = False
