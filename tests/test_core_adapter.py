@@ -54,6 +54,20 @@ class TestInboxAdapter(unittest.TestCase):
         adapter.put_nowait(Message(topic="t", payload=1))
         self.assertFalse(adapter.empty())
 
+    def test_transform_applied(self):
+        """有 transform 時，投遞的是 transform(payload) 而非原始 payload。"""
+        raw = queue.Queue()
+        adapter = InboxAdapter(raw, transform=lambda p: ("wrapped", p))
+        adapter.put_nowait(Message(topic="ui_event", payload="x"))
+        self.assertEqual(raw.get_nowait(), ("wrapped", "x"))
+
+    def test_no_transform_unchanged(self):
+        """transform=None（預設）時行為與舊版相同，直接投遞 payload。"""
+        raw = queue.Queue()
+        adapter = InboxAdapter(raw)
+        adapter.put_nowait(Message(topic="ui_event", payload={"key": "value"}))
+        self.assertEqual(raw.get_nowait(), {"key": "value"})
+
 
 class TestAdaptersOnExchange(unittest.TestCase):
     def test_legacy_queues_route_through_exchange(self):
