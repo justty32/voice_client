@@ -20,7 +20,8 @@ class VoiceToText:
         self._model_size = stt.get("model_size", "base")
         self._device = stt.get("device", "cpu")
         self._compute_type = stt.get("compute_type", "int8")
-        self._language = stt.get("language", "zh")
+        language = stt.get("language", "auto").strip().lower()
+        self._language = None if language in ("", "auto", "detect") else language
         self._beam_size = int(stt.get("beam_size", 5))
         self._vad_filter = stt.getboolean("vad_filter", True)
 
