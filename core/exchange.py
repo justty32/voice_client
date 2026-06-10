@@ -58,6 +58,8 @@ class Exchange:
 
     # ── 生命週期 ───────────────────────────────────────────────────
     def start(self) -> None:
+        if self._running:
+            return
         self._running = True
         self._thread = threading.Thread(target=self._run, name="exchange", daemon=True)
         self._thread.start()
