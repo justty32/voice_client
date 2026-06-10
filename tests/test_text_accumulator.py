@@ -199,6 +199,21 @@ class TestExportImport(TextAccumulatorTestBase):
         self.assertIn("應為 JSON 陣列", self.last_text())
 
 
+class TestEmitText(TextAccumulatorTestBase):
+    def test_emit_text(self):
+        self.seed("a", "b")
+        self.acc._handle_cmd({"cmd": "emit_text"})
+        msg = self.out_q.get_nowait()
+        self.assertEqual(msg["type"], "buffer_text")
+        self.assertEqual(msg["text"], "a\nb")
+
+    def test_emit_text_empty(self):
+        self.acc._handle_cmd({"cmd": "emit_text"})
+        msg = self.out_q.get_nowait()
+        self.assertEqual(msg["type"], "buffer_text")
+        self.assertEqual(msg["text"], "")
+
+
 class TestAutoSaveAndInput(TextAccumulatorTestBase):
     def test_stop_autosaves_buffer_temp(self):
         self.seed("keep", "this")

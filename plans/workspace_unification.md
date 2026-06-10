@@ -114,7 +114,9 @@
 - 跨平台後端（`utils/clipboard.py`）：優先 `pyperclip`，否則退回 `pbcopy/pbpaste`（mac）、
   `clip`/`Get-Clipboard`（Win）、`wl-copy/wl-paste` 或 `xclip` 或 `xsel`（Linux）。
   全不可用時**優雅降級**：提示安裝方式，不崩潰。
-- 手機端（mobile）的剪貼簿改用瀏覽器 `navigator.clipboard`，於 ④c 處理（與桌面後端不同機制）。
+- 手機端（mobile）的剪貼簿改用瀏覽器 `navigator.clipboard`：`/copy` 由伺服器把當前工作區
+  文字推給前端寫入剪貼簿；`/paste` 請前端讀取剪貼簿回傳 `clipboard_data`，伺服器再寫入當前
+  工作區（buffer/stt）。已於 ④c 完成。
 
 ### 4.5 相容性原則
 
@@ -133,9 +135,11 @@
 | ③ | `SessionManager` history → `List[List[str]]`，加舊格式遷移；更新 `http_client._call_local`、`get_history` | 中（動到核心 chat/LLM） | 新增 `tests/test_session_manager.py`（含舊 `.sessions.json` 遷移、`add_message`/`get_history` 對照） |
 | ④a ✅ | `stt` 工作區 + 「當前工作區」+ `/ws` + ws 感知 `/show`/`/clear`/`/send`（TUI）；含剪貼簿 `/copy`/`/paste` | 中 | `tests/test_workspace_controller.py`、`test_clipboard_commands.py` |
 | ④b ✅ | `/del`/`/move`/`/to_top`/`/concat`/`/export`/`/import` 改為當前工作區感知（buffer/stt/chat）（TUI） | 中 | 控制器 + accumulator + session 訊息編輯測試 |
-| ④c | 把 ④a/④b + 剪貼簿全部對齊到手機端（`mobile_server.py` + `app.js`，剪貼簿走 `navigator.clipboard`），語音指令一致 | 中 | 手動煙霧測試 |
+| ④c ✅ | 把 ④a/④b 對齊到手機端（`mobile_server.py`）；剪貼簿走 `navigator.clipboard`（伺服器↔前端往返） | 中 | 手動煙霧測試 |
 
-每階段獨立 commit、可獨立回退。目前全測試 116 綠（`python3 -m unittest discover -s tests`）。
+每階段獨立 commit、可獨立回退。目前全測試 118 綠（`python3 -m unittest discover -s tests`）。
+
+**狀態：①～④ 全部完成。** 剩餘為建議的手動煙霧測試（需音訊/LLM/瀏覽器環境）與未來方向（§7）。
 
 ---
 

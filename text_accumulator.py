@@ -110,6 +110,9 @@ class TextAccumulator:
             self._copy()
         elif op == "paste":
             self._paste()
+        elif op == "emit_text":
+            # 在 accumulator 執行緒內安全地攤平 buffer 文字並送出（供 mobile 剪貼簿用）
+            self._output_queue.put({"type": "buffer_text", "text": self._ws.flatten(seg_sep=" ", entry_sep="\n")})
 
     def _get_path(self, filename: str | None, is_import: bool = False) -> str | None:
         if not filename:

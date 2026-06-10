@@ -57,6 +57,12 @@ function handleServerMsg(msg) {
     case "tts_control":
       if (msg.action === "stop") cancelTTS();
       break;
+    case "clipboard_write":
+      writeClipboard(msg.text || "");
+      break;
+    case "clipboard_read":
+      readClipboardAndSend();
+      break;
     case "sessions":
       updateSessionSelect(msg.list, msg.current);
       break;
@@ -398,6 +404,28 @@ function playLastResponse() {
 // iOS Safari: SpeechSynthesis voices load asynchronously
 if (window.speechSynthesis) {
   window.speechSynthesis.onvoiceschanged = () => {};
+}
+
+// ── Clipboard (navigator.clipboard) ─────────────────────────────────────────
+
+function writeClipboard(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text)
+      .then(() => appendMessage("system", "已複製到剪貼簿。"))
+      .catch((err) => appendMessage("error", "複製到剪貼簿失敗：" + err.message));
+  } else {
+    appendMessage("error", "此瀏覽器不支援剪貼簿寫入（需 HTTPS）。");
+  }
+}
+
+function readClipboardAndSend() {
+  if (navigator.clipboard && navigator.clipboard.readText) {
+    navigator.clipboard.readText()
+      .then((text) => wsSend({ type: "clipboard_data", text: text || "" }))
+      .catch((err) => appendMessage("error", "讀取剪貼簿失敗：" + err.message));
+  } else {
+    appendMessage("error", "此瀏覽器不支援剪貼簿讀取（需 HTTPS）。");
+  }
 }
 
 // ── Init ───────────────────────────────────────────────────────────────────

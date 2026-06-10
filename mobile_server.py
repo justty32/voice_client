@@ -243,6 +243,42 @@ def _handle_text(raw: str):
         _route_cmd(data.get("cmd", ""), data.get("args", []))
     elif t == "signal":
         _route_signal(data.get("signal", ""))
+    elif t == "clipboard_data":
+        # 前端讀取瀏覽器剪貼簿後回傳的內容 → 貼到當前工作區
+        _mobile_paste(data.get("text", ""))
+
+
+def _mobile_copy():
+    """/copy：把當前工作區文字送到前端寫入瀏覽器剪貼簿。"""
+    cur = _wsc.current
+    if cur == "buffer":
+        # buffer 在自己的執行緒中，透過佇列安全地取出文字（見 _output_pusher buffer_text）
+        _acc_cmd_queue.put({"cmd": "emit_text"})
+        return
+    if cur == "stt":
+        if _wsc.stt.is_empty():
+            _push_system("[stt 工作區是空的，沒有可複製的內容]")
+            return
+        text = _wsc.stt.flatten(seg_sep=" ", entry_sep="\n")
+    else:  # chat
+        text = _session_manager.get_history()
+    _push({"type": "clipboard_write", "text": text})
+
+
+def _mobile_paste(text: str):
+    """把前端回傳的剪貼簿文字貼到當前工作區（每個非空行為一筆）。"""
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    cur = _wsc.current
+    if cur == "buffer":
+        for ln in lines:
+            _acc_input_queue.put({"type": "text", "text": ln, "msg_type": "TextChat"})
+        _push_system(f"[系統] 已從剪貼簿貼上 {len(lines)} 筆到暫存區。")
+    elif cur == "stt":
+        for ln in lines:
+            _wsc.stt.append(ln)
+        _push_system(f"[系統] 已從剪貼簿貼上 {len(lines)} 筆到 stt 工作區。")
+    else:
+        _push_system("[系統] chat 工作區不支援貼上（請切換到 buffer 或 stt）。")
 
 
 def _route_signal(signal: str):
@@ -328,6 +364,11 @@ def _route_cmd(cmd: str, args: list):
     elif cmd == "/import":
         _apply_ws_result(_wsc.handle_import(args))
 
+    elif cmd == "/copy":
+        _mobile_copy()
+    elif cmd == "/paste":
+        _push({"type": "clipboard_read"})  # 請前端讀取剪貼簿並回傳 clipboard_data
+
     elif cmd == "/stop":
         # 前端 TTS 由瀏覽器 SpeechSynthesis 播放，通知前端中斷。
         _push({"type": "tts_control", "action": "stop"})
@@ -335,7 +376,7 @@ def _route_cmd(cmd: str, args: list):
     elif cmd == "/help":
         _push_system(
             "/new /switch /list /delete /save /load /rename /history "
-            "/ws /show /clear /del /move /to_top /concat /send /export /import /stop /help"
+            "/ws /show /clear /del /move /to_top /concat /send /export /import /copy /paste /stop /help"
         )
 
     else:
@@ -401,6 +442,9 @@ async def _output_pusher(ws: WebSocket):
                     _push_status("傳送中")
                 elif item.get("type") == "buffer_peek":
                     _push_system(item["text"])
+                elif item.get("type") == "buffer_text":
+                    # buffer 文字 → 通知前端寫入瀏覽器剪貼簿
+                    _push({"type": "clipboard_write", "text": item["text"]})
 
             # 3. Summary output → 摘要訊息 + TTS
             while not _summary_output_queue.empty():
