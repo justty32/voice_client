@@ -59,8 +59,11 @@ core/
 | topic | 生產者 | 消費者 |
 |---|---|---|
 | `audio` | Recorder | STT |
-| `raw_text` | STT、終端文字輸入 | WorkspaceManager（塞進當前工作區） |
-| `commands` | 終端斜線指令、語音指令辨識、熱鍵 | CommandRouter |
+| `stt_text` | STT | SttGate（依模式分流） |
+| `raw_text` | SttGate（normal 模式）、終端文字輸入 | WorkspaceManager（塞進當前工作區） |
+| `commands` | 終端斜線指令、SttGate（command 模式）、熱鍵 | CommandRouter |
+| `gate_ctl` | CommandRouter | SttGate（模式切換） |
+| `app_ctl` | CommandRouter（/exit） | app.py（階段⑤接上） |
 | `recorder_ctl` | CommandRouter | Recorder |
 | `tts_ctl` | CommandRouter | AudioPriorityPlayer |
 | `outbound` | CommandRouter（/send） | HttpClient |
@@ -73,8 +76,11 @@ core/
 
 1. **語音資料流**：Recorder →`audio`→ STT →`raw_text`→ 當前工作區。
 2. **指令流**：熱鍵／終端／語音指令 →`commands`→ CommandRouter
-   →（`recorder_ctl`、`tts_ctl`、`ui_event`、`outbound`…）。
+   →（`recorder_ctl`、`tts_ctl`、`gate_ctl`、`ui_event`、`outbound`…）。
    現有 main.py 的 `_route_cli_cmd`、`_handle_voice_command` 邏輯全部搬進 CommandRouter。
+   語音指令模式由 **SttGate** 實現：STT 輸出進 `stt_text`，SttGate 依模式（由
+   CommandRouter 經 `gate_ctl` 切換）分流到 `raw_text`（normal）或
+   `commands` 的 `{"cmd":"voice"}`（command），保住 raw_text 唯一消費者的決策。
 3. **聊天流**：CommandRouter 的 /send 把當前 buffer 內容組 payload →`outbound`→
    HttpClient →`inbound`→ ChatFlow（寫入 SessionManager 歷史、依摘要門檻決定
    直接 `tts` 或發 `summary_req`）。
@@ -84,6 +90,7 @@ core/
 
 - **WorkspaceManager**：持有多個 workspace 與「當前」指標（吸收現有
   WorkspaceController 與 TextAccumulator 的職責）。
+- **SttGate**：語音指令模式分流（吸收 main.py 的 is_command_mode）。
 - **CommandRouter**：所有斜線指令、語音指令、熱鍵指令的唯一處理者。
 - **ChatFlow**：對話歷史與摘要決策（吸收 main.py 的 `_route_response`）。
 

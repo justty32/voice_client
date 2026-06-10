@@ -1,7 +1,7 @@
 # Voice Client 架構文檔
 
 更新日期：2026-06-10
-適用版本：`refactor/data-tunnel` 分支（資料隧道重構階段②完成）
+適用版本：`refactor/data-tunnel` 分支（資料隧道重構階段③完成）
 
 ## 1. 總覽
 
@@ -23,7 +23,7 @@ LLM，回覆再經摘要（本地 SLM）與 TTS 朗讀。
         └──────────────┘           └──────────────────────┘        └──────────────┘
 ```
 
-## 2. 資料隧道框架（`core/`，階段①②已完成）
+## 2. 資料隧道框架（`core/`，階段①②③已完成）
 
 框架本體不含任何業務邏輯，五個檔案各司其職：
 
@@ -59,8 +59,11 @@ LLM，回覆再經摘要（本地 SLM）與 TTS 朗讀。
 | topic | 生產者 | 消費者 |
 |---|---|---|
 | `audio` | Recorder | STT |
-| `raw_text` | STT、終端文字輸入 | WorkspaceManager（塞進**當前**工作區） |
-| `commands` | 終端斜線指令、語音指令辨識、熱鍵 | CommandRouter |
+| `stt_text` | STT | SttGate（依模式分流） |
+| `raw_text` | SttGate（normal 模式）、終端文字輸入 | WorkspaceManager（塞進**當前**工作區） |
+| `commands` | 終端斜線指令、SttGate（command 模式）、熱鍵 | CommandRouter |
+| `gate_ctl` | CommandRouter | SttGate（模式切換） |
+| `app_ctl` | CommandRouter（/exit） | app.py（階段⑤接上） |
 | `recorder_ctl` | CommandRouter | Recorder |
 | `tts_ctl` | CommandRouter | AudioPriorityPlayer |
 | `outbound` | CommandRouter（/send） | HttpClient |
@@ -95,7 +98,8 @@ LLM，回覆再經摘要（本地 SLM）與 TTS 朗讀。
 | `main.py` 路由邏輯 | 拆入 CommandRouter／ChatFlow／WorkspaceManager |
 | `record.py`、`voice_to_text.py` | 經 `core/adapter.py` 轉接器掛上框架（階段②，模組本體零修改） |
 | `text_accumulator.py`、`workspace_controller.py`、`workspace.py` | 合併為 WorkspaceManager（階段②③） |
-| `terminal_input.py`、`keyboard_listener.py` | 改為 `commands` 生產者（階段③） |
+| `terminal_input.py`、`keyboard_listener.py` | 經轉接器作為 `commands` 生產者（階段③完成邏輯、階段⑤接線；模組零修改） |
+| `main.py` 的 `is_command_mode` | SttGate（`modules/stt_gate.py`，階段③） |
 | `http_client.py`、`summary_generator.py`、`session_manager.py` | 聊天流（階段④） |
 | `tui_renderer.py`、`text_to_voice.py` | 呈現層（階段⑤） |
 | `mobile_server.py` | 本次重構非目標，日後另案對齊 |
@@ -104,7 +108,7 @@ LLM，回覆再經摘要（本地 SLM）與 TTS 朗讀。
 
 - ✅ **階段①**：`core/` 框架本體＋29 個測試（不接業務模組）
 - ✅ **階段②**：語音資料流——轉接器橋接 Recorder/STT、WorkspaceManager 上線
-- ⬜ **階段③**：指令流——終端、熱鍵、語音指令改為生產者；CommandRouter 上線
+- ✅ **階段③**：指令流——SttGate 分流、CommandRouter 上線（全指令集 port 完成）
 - ⬜ **階段④**：聊天流——HttpClient、ChatFlow、SummaryGenerator
 - ⬜ **階段⑤**：呈現層收尾——TuiRenderer、TTS；移除舊 main.py 路由
 
@@ -123,9 +127,12 @@ LLM，回覆再經摘要（本地 SLM）與 TTS 朗讀。
 
 - 框架單元測試：`tests/test_core_message.py`、`test_core_endpoint.py`、
   `test_core_exchange.py`、`test_core_module.py`、`test_core_adapter.py`
-- 業務模組測試：`tests/test_workspace_manager.py`
+- 業務模組測試：`tests/test_workspace_manager.py`、`test_stt_gate.py`、
+  `test_command_router_hotkeys.py`、`test_command_router_workspace.py`、
+  `test_command_router_session.py`、`test_command_router_voice.py`
 - 框架整合測試：`tests/test_core_integration.py`（生產者→Exchange→消費者全鏈）、
-  `test_voice_flow_integration.py`（語音資料流：audio→STT→當前工作區）
+  `test_voice_flow_integration.py`（語音資料流：audio→STT→當前工作區）、
+  `test_command_flow_integration.py`（指令流：熱鍵／語音指令／終端全鏈）
 - 執行：`python3 -m unittest discover -s tests`（unittest，非 pytest）
 
 ## 相關文件
