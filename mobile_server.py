@@ -234,6 +234,9 @@ def _handle_text(raw: str):
 def _route_signal(signal: str):
     if signal == "QUICK_SEND":
         _acc_cmd_queue.put({"cmd": "flush", "msg_type": "TextChat"})
+    elif signal == "FORCE_STOP_TTS":
+        # 通知前端中斷瀏覽器 TTS 播放（前端按鈕本地也會 cancel，這裡確保閉環）。
+        _push({"type": "tts_control", "action": "stop"})
 
 
 def _route_cmd(cmd: str, args: list):
@@ -258,9 +261,13 @@ def _route_cmd(cmd: str, args: list):
         _push_system(text)
 
     elif cmd == "/delete":
-        _, msg = _session_manager.delete_session(" ".join(args))
-        _push_system(msg)
-        _push({"type": "sessions_refresh"})
+        title = " ".join(args)
+        if not title:
+            _push_system("用法: /delete [對話名稱]")
+        else:
+            _, msg = _session_manager.delete_session(title)
+            _push_system(msg)
+            _push({"type": "sessions_refresh"})
 
     elif cmd == "/save":
         _, msg = _session_manager.save_session_to_file(" ".join(args) if args else None)
@@ -268,9 +275,9 @@ def _route_cmd(cmd: str, args: list):
 
     elif cmd == "/load":
         if not args:
-            _push_system("請指定要載入的檔名。")
+            _push_system("用法: /load [檔名]")
         else:
-            _, msg = _session_manager.load_session_from_file(args[0])
+            _, msg = _session_manager.load_session_from_file(" ".join(args))
             _push_system(msg)
             _push({"type": "sessions_refresh"})
 
@@ -311,10 +318,14 @@ def _route_cmd(cmd: str, args: list):
     elif cmd == "/import":
         _acc_cmd_queue.put({"cmd": "import", "args": args})
 
+    elif cmd == "/stop":
+        # 前端 TTS 由瀏覽器 SpeechSynthesis 播放，通知前端中斷。
+        _push({"type": "tts_control", "action": "stop"})
+
     elif cmd == "/help":
         _push_system(
             "/new /switch /list /delete /save /load /rename /history "
-            "/concat /to_top /send /export /import /show /clear /help"
+            "/concat /to_top /send /export /import /show /stop /clear /help"
         )
 
     else:

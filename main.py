@@ -260,13 +260,16 @@ def _route_cli_cmd(cmd_item: dict, session_manager: SessionManager, ui_event_que
         ui_event_queue.put(UiEvent("message", {"role": "system", "text": text}))
     elif cmd == "/delete":
         title = " ".join(args)
-        success, msg = session_manager.delete_session(title)
-        ui_event_queue.put(UiEvent("message", {"role": "system", "text": msg}))
+        if not title:
+            ui_event_queue.put(UiEvent("message", {"role": "system", "text": "用法: /delete [對話名稱]"}))
+        else:
+            success, msg = session_manager.delete_session(title)
+            ui_event_queue.put(UiEvent("message", {"role": "system", "text": msg}))
     elif cmd == "/load":
         if not args:
-            ui_event_queue.put(UiEvent("message", {"role": "system", "text": "請指定要載入的檔名。"}))
+            ui_event_queue.put(UiEvent("message", {"role": "system", "text": "用法: /load [檔名]"}))
         else:
-            filename = args[0]
+            filename = " ".join(args)
             success, msg = session_manager.load_session_from_file(filename)
             ui_event_queue.put(UiEvent("message", {"role": "system", "text": msg}))
     elif cmd == "/rename":
@@ -424,6 +427,10 @@ def _handle_voice_command(
         _route_cli_cmd({"cmd": "/stop"}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue)
     elif "show" in text or "顯示" in text:
         _route_cli_cmd({"cmd": "/show"}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue)
+    elif "history" in text or "歷史" in text or "紀錄" in text or "記錄" in text:
+        _route_cli_cmd({"cmd": "/history"}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue)
+    elif "help" in text or "幫助" in text or "說明" in text or "指令" in text:
+        _route_cli_cmd({"cmd": "/help"}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue)
     elif "clear" in text or "清除" in text:
         if "buffer" in text or "暫存" in text:
             _route_cli_cmd({"cmd": "/clear", "args": ["buffer"]}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue)

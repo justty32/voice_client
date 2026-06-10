@@ -69,7 +69,8 @@ class TextAccumulator:
     def _handle_cmd(self, cmd: dict):
         op = cmd.get("cmd")
         args = cmd.get("args", [])
-        filename = args[0] if args else None
+        # 以空格 join 支援含空格的檔名（與 session /save 行為一致）
+        filename = " ".join(args) if args else None
 
         if op == "flush":
             self._flush()
