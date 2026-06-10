@@ -87,7 +87,8 @@ class ChatFlow(TunnelModule):
     def _handle_status_update(self, payload: dict) -> None:
         text = payload.get("text", "")
         self.emit("ui_event", {"type": "status", "text": text})
-        self.emit("tts", {"text": text, "priority": "low"})
+        if text:
+            self.emit("tts", {"text": text, "priority": "low"})
 
     def _handle_error(self, payload: dict) -> None:
         msg = payload.get("message", "Unknown error")
@@ -101,7 +102,7 @@ class ChatFlow(TunnelModule):
         if type_ == "status":
             self.emit("ui_event", {"type": "status", "text": payload.get("text", "")})
         elif type_ == "summary":
-            display = f"回覆摘要：{payload['text']}"
+            display = f"回覆摘要：{payload.get('text', '')}"
             self.emit("ui_event", {"type": "message", "role": "summary", "text": display})
             self.emit("tts", {"text": display, "priority": "medium"})
 
