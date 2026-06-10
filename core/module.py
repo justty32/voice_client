@@ -40,6 +40,8 @@ class TunnelModule:
 
     # ── 消費（基底執行緒迴圈）──────────────────────────────────────
     def start(self) -> None:
+        if self._running:
+            return
         self._running = True
         self._thread = threading.Thread(target=self._run, name=self.name, daemon=True)
         self._thread.start()
