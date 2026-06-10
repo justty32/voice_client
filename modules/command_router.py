@@ -131,6 +131,9 @@ class CommandRouter(TunnelModule):
             self._handle_help()
         elif cmd == "/exit":
             self.emit("app_ctl", "EXIT")
+        # ── 語音指令（Task 5）────────────────────────────────────────────
+        elif cmd == "voice":
+            self._handle_voice(cmd_item.get("args", []))
         elif cmd == "unknown":
             # terminal_input 發 {"cmd":"unknown","args":[原始行]}，顯示 args[0]
             args = cmd_item.get("args", [])
@@ -400,6 +403,130 @@ class CommandRouter(TunnelModule):
         })
         self.emit("outbound", payload)
         self.emit("ui_event", {"type": "status", "text": "傳送中"})
+
+    # ── 語音指令解析（Task 5，port main.py:392-483）──────────────────────────
+
+    def _handle_voice(self, args: list) -> None:
+        """語音指令關鍵字解析後內部重派發。
+
+        Port 自 main.py:392-483：
+        - 先以原始文字發 [語音指令] 顯示訊息（port main.py:165）
+        - 再以 text.lower().strip() 進行關鍵字比對（port main.py:403）
+        - 比對順序嚴格遵照 legacy if/elif 梯形順序（不改變優先權）
+        - 比對到後內部重派發到 self._dispatch()，不重複實作指令邏輯
+        """
+        raw_text = args[0] if args else ""
+
+        # 顯示原始（未 lower）辨識文字
+        self._ui_msg(f"[語音指令] {raw_text}")
+
+        # 關鍵字比對使用 lowered 文字（port main.py:403）
+        text = raw_text.lower().strip()
+
+        # ── 關鍵字梯形（嚴格照 main.py:405-483 順序）────────────────────
+        if "new" in text or "新建" in text or "開啟對話" in text:
+            # port main.py:407-408: 取第一個詞後面的部分作為 args
+            parts = text.split()
+            v_args = parts[1:] if len(parts) > 1 else []
+            self._dispatch({"cmd": "/new", "args": v_args})
+
+        elif "switch" in text or "切換" in text:
+            parts = text.split()
+            v_args = parts[1:] if len(parts) > 1 else []
+            self._dispatch({"cmd": "/switch", "args": v_args})
+
+        elif "list" in text or "列表" in text or "清單" in text:
+            self._dispatch({"cmd": "/list", "args": []})
+
+        elif "delete" in text or "刪除" in text:
+            # port main.py:418-422: 尋找關鍵字詞之後的部分
+            parts = text.split()
+            v_args = []
+            for i, p in enumerate(parts):
+                if "delete" in p or "刪除" in p:
+                    v_args = parts[i + 1:]
+                    break
+            self._dispatch({"cmd": "/delete", "args": v_args})
+
+        elif "save" in text or "保存" in text or "儲存" in text:
+            # port main.py:425-431
+            parts = text.split()
+            v_args = []
+            for i, p in enumerate(parts):
+                if "save" in p or "保存" in p or "儲存" in p:
+                    v_args = parts[i + 1:]
+                    break
+            self._dispatch({"cmd": "/save", "args": v_args})
+
+        elif "concat" in text or "壓縮" in text or "連接" in text:
+            self._dispatch({"cmd": "/concat", "args": []})
+
+        elif "to top" in text or "置頂" in text or "移至最前" in text:
+            self._dispatch({"cmd": "/to_top", "args": []})
+
+        elif "send" in text or "發送" in text or "傳送" in text:
+            self._dispatch({"cmd": "/send", "args": []})
+
+        elif "export" in text or "匯出" in text:
+            # port main.py:439-446: 尋找關鍵字詞之後的部分
+            parts = text.split()
+            v_args = []
+            for i, p in enumerate(parts):
+                if "export" in p or "匯出" in p:
+                    v_args = parts[i + 1:]
+                    break
+            self._dispatch({"cmd": "/export", "args": v_args})
+
+        elif "import" in text or "匯入" in text:
+            # port main.py:448-454
+            parts = text.split()
+            v_args = []
+            for i, p in enumerate(parts):
+                if "import" in p or "匯入" in p:
+                    v_args = parts[i + 1:]
+                    break
+            self._dispatch({"cmd": "/import", "args": v_args})
+
+        elif "copy" in text or "複製" in text:
+            self._dispatch({"cmd": "/copy", "args": []})
+
+        elif "paste" in text or "貼上" in text:
+            self._dispatch({"cmd": "/paste", "args": []})
+
+        elif "stop" in text or "停止" in text:
+            self._dispatch({"cmd": "/stop", "args": []})
+
+        elif "show" in text or "顯示" in text:
+            self._dispatch({"cmd": "/show", "args": []})
+
+        elif "history" in text or "歷史" in text or "紀錄" in text or "記錄" in text:
+            self._dispatch({"cmd": "/history", "args": []})
+
+        elif "help" in text or "幫助" in text or "說明" in text or "指令" in text:
+            self._dispatch({"cmd": "/help", "args": []})
+
+        elif "工作區" in text or "workspace" in text:
+            # port main.py:468-474: 尋找關鍵字詞之後的部分
+            parts = text.split()
+            v_args = []
+            for i, p in enumerate(parts):
+                if "工作區" in p or "workspace" in p:
+                    v_args = parts[i + 1:]
+                    break
+            self._dispatch({"cmd": "/ws", "args": v_args})
+
+        elif "clear" in text or "清除" in text:
+            # port main.py:476-481: 有三個子分支
+            if "buffer" in text or "暫存" in text:
+                self._dispatch({"cmd": "/clear", "args": ["buffer"]})
+            elif "畫面" in text or "螢幕" in text or "ui" in text or "screen" in text:
+                self._dispatch({"cmd": "/clear", "args": ["ui"]})
+            else:
+                self._dispatch({"cmd": "/clear", "args": []})
+
+        else:
+            # port main.py:483: 無法識別
+            self._ui_msg(f"無法識別的語音指令: {text}")
 
     def _handle_force_stop_tts(self) -> None:
         self.emit("tts_ctl", "STOP_SPEECH")
