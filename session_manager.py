@@ -130,6 +130,23 @@ class SessionManager:
             ])
             self._save_sessions()
 
+    def message_count(self) -> int:
+        """當前對話的訊息筆數。"""
+        session = self.get_current_session()
+        if session and isinstance(session.get("history"), list):
+            return len(session["history"])
+        return 0
+
+    def clear_history(self) -> int:
+        """清空當前對話的歷史，回傳被清除的筆數。"""
+        session = self.get_current_session()
+        if session is None:
+            return 0
+        n = len(session.get("history", []))
+        session["history"] = []
+        self._save_sessions()
+        return n
+
     def delete_session(self, title: str) -> tuple[bool, str]:
         """刪除指定 Session，刪除前先備份至 output/deleted。"""
         if title == self._current_title:

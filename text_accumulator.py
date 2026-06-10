@@ -42,6 +42,10 @@ class TextAccumulator:
         self._thread = threading.Thread(target=self._loop, daemon=True, name="TextAccumulator")
         self._thread.start()
 
+    def count(self) -> int:
+        """目前 buffer 筆數（供 /ws 列舉用；CPython GIL 下讀取為原子操作）。"""
+        return self._ws.count()
+
     def stop(self):
         self._running = False
         if not self._ws.is_empty():

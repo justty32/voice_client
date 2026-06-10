@@ -23,6 +23,7 @@ from terminal_input import EXIT_SIGNAL, TerminalInput
 from text_to_voice import AudioPriorityPlayer
 from tui_renderer import TuiRenderer, UiEvent
 from voice_to_text import VoiceToText
+from workspace_controller import WorkspaceController
 
 
 def _setup_logging(config):
@@ -70,6 +71,9 @@ def main():
         # 優先嘗試切換回上次可能存在的 default，不存在才建新的
         if not session_manager.switch_session("default"):
             session_manager.new_session("default")
+
+    # 工作區控制器：管理 stt 工作區與「當前工作區」指標，派發統一 CRUD 指令
+    wsc = WorkspaceController(session_manager)
 
     # ── Instantiate modules ────────────────────────────────────────────
     keyboard_listener = KeyboardListener(config, key_signal_queue)
@@ -152,9 +156,10 @@ def main():
                 if text.strip():
                     if is_command_mode:
                         ui_event_queue.put(UiEvent("message", {"role": "system", "text": f"[語音指令] {text}"}))
-                        _handle_voice_command(text, session_manager, ui_event_queue, acc_cmd_queue, summary_queue, tts_cmd_queue)
+                        _handle_voice_command(text, session_manager, ui_event_queue, acc_cmd_queue, summary_queue, tts_cmd_queue, wsc, acc=text_accumulator)
                     else:
                         ui_event_queue.put(UiEvent("message", {"role": "voice", "text": text}))
+                        wsc.stt.append(text)  # 擷取原始辨識文字至 stt 工作區
                         acc_input_queue.put({"type": "text", "text": text, "msg_type": "VoiceChat"})
 
             # ── D. CLI text → SLM ─────────────────────────────────────
@@ -169,7 +174,7 @@ def main():
             # ── E. CLI commands → Session operations ───────────────────
             while not cli_cmd_queue.empty():
                 cmd_item = cli_cmd_queue.get_nowait()
-                _route_cli_cmd(cmd_item, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue)
+                _route_cli_cmd(cmd_item, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue, wsc, text_accumulator)
 
             # ── F. Accumulator output → HTTP ───────────────────────────
             while not acc_output_queue.empty():
@@ -234,7 +239,18 @@ def main():
 # ── Router helpers (pure routing, no business logic) ──────────────────────
 
 
-def _route_cli_cmd(cmd_item: dict, session_manager: SessionManager, ui_event_queue: queue.Queue, acc_cmd_queue: queue.Queue, tts_cmd_queue: queue.Queue):
+def _apply_ws_result(res, ui_event_queue: queue.Queue, acc_cmd_queue: queue.Queue):
+    """把 WorkspaceController 的派發結果套用到 TUI 的輸出通道。"""
+    for role, text in res.messages:
+        ui_event_queue.put(UiEvent("message", {"role": role, "text": text}))
+    for c in res.acc_cmds:
+        acc_cmd_queue.put(c)
+    if res.clear_ui:
+        ui_event_queue.put(UiEvent("clear"))
+        ui_event_queue.put(UiEvent("status", "待機"))
+
+
+def _route_cli_cmd(cmd_item: dict, session_manager: SessionManager, ui_event_queue: queue.Queue, acc_cmd_queue: queue.Queue, tts_cmd_queue: queue.Queue, wsc: "WorkspaceController", acc: "TextAccumulator"):
     cmd = cmd_item.get("cmd", "")
     args = cmd_item.get("args", [])
 
@@ -286,20 +302,16 @@ def _route_cli_cmd(cmd_item: dict, session_manager: SessionManager, ui_event_que
         filename = " ".join(args) if args else None
         success, msg = session_manager.save_session_to_file(filename)
         ui_event_queue.put(UiEvent("message", {"role": "system", "text": msg}))
+    elif cmd == "/ws":
+        _apply_ws_result(wsc.handle_ws(args, acc.count()), ui_event_queue, acc_cmd_queue)
     elif cmd == "/clear":
-        arg = args[0].lower() if args else None
-        if arg == "buffer":
-            acc_cmd_queue.put({"cmd": "clear"})
-        else:
-            # 預設清除 UI
-            ui_event_queue.put(UiEvent("clear"))
-            ui_event_queue.put(UiEvent("status", "待機"))
+        _apply_ws_result(wsc.handle_clear(args), ui_event_queue, acc_cmd_queue)
     elif cmd == "/concat":
         acc_cmd_queue.put({"cmd": "concat"})
     elif cmd == "/to_top":
         acc_cmd_queue.put({"cmd": "to_top"})
     elif cmd == "/send":
-        acc_cmd_queue.put({"cmd": "flush", "msg_type": "TextChat"})
+        _apply_ws_result(wsc.handle_send(), ui_event_queue, acc_cmd_queue)
     elif cmd == "/export":
         acc_cmd_queue.put({"cmd": "export", "args": args})
     elif cmd == "/import":
@@ -308,9 +320,9 @@ def _route_cli_cmd(cmd_item: dict, session_manager: SessionManager, ui_event_que
         tts_cmd_queue.put("STOP_SPEECH")
         ui_event_queue.put(UiEvent("status", "待機"))
     elif cmd == "/show":
-        acc_cmd_queue.put({"cmd": "peek"})
+        _apply_ws_result(wsc.handle_show(), ui_event_queue, acc_cmd_queue)
     elif cmd == "/help":
-        help_text = "/new [title]  /switch [title]  /list  /delete [title]  /save [file]  /load [file]  /rename [old] [new]  /history  /concat  /to_top  /send  /export  /import  /stop  /show  /clear [buffer]  /help  /exit"
+        help_text = "/new [title]  /switch [title]  /list  /delete [title]  /save [file]  /load [file]  /rename [old] [new]  /history  /ws [name]  /show  /clear [ui|stt|buffer|chat]  /concat  /to_top  /send  /export  /import  /stop  /help  /exit"
         ui_event_queue.put(UiEvent("message", {"role": "system", "text": help_text}))
     elif cmd == "unknown":
         ui_event_queue.put(UiEvent("message", {"role": "system", "text": f"未知指令: {args[0] if args else ''}"}))
@@ -368,7 +380,9 @@ def _handle_voice_command(
     ui_event_queue: queue.Queue,
     acc_cmd_queue: queue.Queue,
     summary_queue: queue.Queue,
-    tts_cmd_queue: queue.Queue
+    tts_cmd_queue: queue.Queue,
+    wsc: "WorkspaceController",
+    acc: "TextAccumulator",
 ):
     """將語音辨識出的文字解析為斜線指令並路由。"""
     text = text.lower().strip()
@@ -377,13 +391,13 @@ def _handle_voice_command(
         # 嘗試擷取名稱，例如 "new session apple" -> "session apple"
         parts = text.split()
         args = parts[1:] if len(parts) > 1 else []
-        _route_cli_cmd({"cmd": "/new", "args": args}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue)
+        _route_cli_cmd({"cmd": "/new", "args": args}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue, wsc, acc)
     elif "switch" in text or "切換" in text:
         parts = text.split()
         args = parts[1:] if len(parts) > 1 else []
-        _route_cli_cmd({"cmd": "/switch", "args": args}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue)
+        _route_cli_cmd({"cmd": "/switch", "args": args}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue, wsc, acc)
     elif "list" in text or "列表" in text or "清單" in text:
-        _route_cli_cmd({"cmd": "/list"}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue)
+        _route_cli_cmd({"cmd": "/list"}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue, wsc, acc)
     elif "delete" in text or "刪除" in text:
         parts = text.split()
         args = []
@@ -391,7 +405,7 @@ def _handle_voice_command(
             if "delete" in p or "刪除" in p:
                 args = parts[i+1:]
                 break
-        _route_cli_cmd({"cmd": "/delete", "args": args}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue)
+        _route_cli_cmd({"cmd": "/delete", "args": args}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue, wsc, acc)
     elif "save" in text or "保存" in text or "儲存" in text:
         parts = text.split()
         args = []
@@ -399,13 +413,13 @@ def _handle_voice_command(
             if "save" in p or "保存" in p or "儲存" in p:
                 args = parts[i+1:]
                 break
-        _route_cli_cmd({"cmd": "/save", "args": args}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue)
+        _route_cli_cmd({"cmd": "/save", "args": args}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue, wsc, acc)
     elif "concat" in text or "壓縮" in text or "連接" in text:
-        _route_cli_cmd({"cmd": "/concat"}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue)
+        _route_cli_cmd({"cmd": "/concat"}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue, wsc, acc)
     elif "to top" in text or "置頂" in text or "移至最前" in text:
-        _route_cli_cmd({"cmd": "/to_top"}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue)
+        _route_cli_cmd({"cmd": "/to_top"}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue, wsc, acc)
     elif "send" in text or "發送" in text or "傳送" in text:
-        _route_cli_cmd({"cmd": "/send"}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue)
+        _route_cli_cmd({"cmd": "/send"}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue, wsc, acc)
     elif "export" in text or "匯出" in text:
         parts = text.split()
         # 尋找關鍵字後面的詞，例如 "匯出 測試" -> "測試"
@@ -414,7 +428,7 @@ def _handle_voice_command(
             if "export" in p or "匯出" in p:
                 args = parts[i+1:]
                 break
-        _route_cli_cmd({"cmd": "/export", "args": args}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue)
+        _route_cli_cmd({"cmd": "/export", "args": args}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue, wsc, acc)
     elif "import" in text or "匯入" in text:
         parts = text.split()
         args = []
@@ -422,20 +436,30 @@ def _handle_voice_command(
             if "import" in p or "匯入" in p:
                 args = parts[i+1:]
                 break
-        _route_cli_cmd({"cmd": "/import", "args": args}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue)
+        _route_cli_cmd({"cmd": "/import", "args": args}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue, wsc, acc)
     elif "stop" in text or "停止" in text:
-        _route_cli_cmd({"cmd": "/stop"}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue)
+        _route_cli_cmd({"cmd": "/stop"}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue, wsc, acc)
     elif "show" in text or "顯示" in text:
-        _route_cli_cmd({"cmd": "/show"}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue)
+        _route_cli_cmd({"cmd": "/show"}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue, wsc, acc)
     elif "history" in text or "歷史" in text or "紀錄" in text or "記錄" in text:
-        _route_cli_cmd({"cmd": "/history"}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue)
+        _route_cli_cmd({"cmd": "/history"}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue, wsc, acc)
     elif "help" in text or "幫助" in text or "說明" in text or "指令" in text:
-        _route_cli_cmd({"cmd": "/help"}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue)
+        _route_cli_cmd({"cmd": "/help"}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue, wsc, acc)
+    elif "工作區" in text or "workspace" in text:
+        parts = text.split()
+        args = []
+        for i, p in enumerate(parts):
+            if "工作區" in p or "workspace" in p:
+                args = parts[i+1:]
+                break
+        _route_cli_cmd({"cmd": "/ws", "args": args}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue, wsc, acc)
     elif "clear" in text or "清除" in text:
         if "buffer" in text or "暫存" in text:
-            _route_cli_cmd({"cmd": "/clear", "args": ["buffer"]}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue)
+            _route_cli_cmd({"cmd": "/clear", "args": ["buffer"]}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue, wsc, acc)
+        elif "畫面" in text or "螢幕" in text or "ui" in text or "screen" in text:
+            _route_cli_cmd({"cmd": "/clear", "args": ["ui"]}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue, wsc, acc)
         else:
-            _route_cli_cmd({"cmd": "/clear"}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue)
+            _route_cli_cmd({"cmd": "/clear"}, session_manager, ui_event_queue, acc_cmd_queue, tts_cmd_queue, wsc, acc)
     else:
         ui_event_queue.put(UiEvent("message", {"role": "system", "text": f"無法識別的語音指令: {text}"}))
 
