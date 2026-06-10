@@ -69,6 +69,8 @@ core/
 | `outbound` | CommandRouter（/send） | HttpClient |
 | `inbound` | HttpClient | ChatFlow |
 | `summary_req` | ChatFlow | SummaryGenerator |
+| `summary_out` | SummaryGenerator | ChatFlow（呈現摘要） |
+| `chat_ctl` | CommandRouter（play_last） | ChatFlow |
 | `tts` | ChatFlow、SummaryGenerator、CommandRouter | AudioPriorityPlayer |
 | `ui_event` | 所有模組 | TuiRenderer |
 
@@ -92,7 +94,11 @@ core/
   WorkspaceController 與 TextAccumulator 的職責）。
 - **SttGate**：語音指令模式分流（吸收 main.py 的 is_command_mode）。
 - **CommandRouter**：所有斜線指令、語音指令、熱鍵指令的唯一處理者。
-- **ChatFlow**：對話歷史與摘要決策（吸收 main.py 的 `_route_response`）。
+- **ChatFlow**：對話歷史與摘要決策（吸收 main.py 的 `_route_response`、
+  F1 摘要呈現與 last_full_response 重播）。
+
+設計決議（階段④定案）：**chat 不可成為「當前工作區」**——raw_text 永不流入
+chat；chat 僅能以明確指令操作（/history、/clear chat），/ws chat 回唯讀提示。
 
 ## 錯誤處理
 

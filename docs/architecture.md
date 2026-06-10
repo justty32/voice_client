@@ -1,7 +1,7 @@
 # Voice Client 架構文檔
 
 更新日期：2026-06-10
-適用版本：`refactor/data-tunnel` 分支（資料隧道重構階段③完成）
+適用版本：`refactor/data-tunnel` 分支（資料隧道重構階段④完成）
 
 ## 1. 總覽
 
@@ -23,7 +23,7 @@ LLM，回覆再經摘要（本地 SLM）與 TTS 朗讀。
         └──────────────┘           └──────────────────────┘        └──────────────┘
 ```
 
-## 2. 資料隧道框架（`core/`，階段①②③已完成）
+## 2. 資料隧道框架（`core/`，階段①〜④已完成）
 
 框架本體不含任何業務邏輯，五個檔案各司其職：
 
@@ -69,6 +69,8 @@ LLM，回覆再經摘要（本地 SLM）與 TTS 朗讀。
 | `outbound` | CommandRouter（/send） | HttpClient |
 | `inbound` | HttpClient | ChatFlow |
 | `summary_req` | ChatFlow | SummaryGenerator |
+| `summary_out` | SummaryGenerator | ChatFlow（呈現摘要） |
+| `chat_ctl` | CommandRouter（play_last） | ChatFlow |
 | `tts` | ChatFlow、SummaryGenerator、CommandRouter | AudioPriorityPlayer |
 | `ui_event` | 所有模組 | TuiRenderer |
 
@@ -100,7 +102,9 @@ LLM，回覆再經摘要（本地 SLM）與 TTS 朗讀。
 | `text_accumulator.py`、`workspace_controller.py`、`workspace.py` | 合併為 WorkspaceManager（階段②③） |
 | `terminal_input.py`、`keyboard_listener.py` | 經轉接器作為 `commands` 生產者（階段③完成邏輯、階段⑤接線；模組零修改） |
 | `main.py` 的 `is_command_mode` | SttGate（`modules/stt_gate.py`，階段③） |
-| `http_client.py`、`summary_generator.py`、`session_manager.py` | 聊天流（階段④） |
+| `http_client.py`、`summary_generator.py` | 經轉接器掛上框架（階段④完成邏輯、階段⑤接線；模組零修改） |
+| `session_manager.py` | 由 CommandRouter／ChatFlow 同步呼叫（保持同步物件，零修改） |
+| `main.py` 的 `_route_response`、摘要呈現、last_full_response | ChatFlow（`modules/chat_flow.py`，階段④） |
 | `tui_renderer.py`、`text_to_voice.py` | 呈現層（階段⑤） |
 | `mobile_server.py` | 本次重構非目標，日後另案對齊 |
 
@@ -109,7 +113,7 @@ LLM，回覆再經摘要（本地 SLM）與 TTS 朗讀。
 - ✅ **階段①**：`core/` 框架本體＋29 個測試（不接業務模組）
 - ✅ **階段②**：語音資料流——轉接器橋接 Recorder/STT、WorkspaceManager 上線
 - ✅ **階段③**：指令流——SttGate 分流、CommandRouter 上線（全指令集 port 完成）
-- ⬜ **階段④**：聊天流——HttpClient、ChatFlow、SummaryGenerator
+- ✅ **階段④**：聊天流——ChatFlow 上線、chat 工作區指令接入、重播鏈完成
 - ⬜ **階段⑤**：呈現層收尾——TuiRenderer、TTS；移除舊 main.py 路由
 
 每階段獨立可運作、有測試；計畫文件依序為 `plans/data_tunnel_stage{N}_plan.md`。
@@ -129,10 +133,12 @@ LLM，回覆再經摘要（本地 SLM）與 TTS 朗讀。
   `test_core_exchange.py`、`test_core_module.py`、`test_core_adapter.py`
 - 業務模組測試：`tests/test_workspace_manager.py`、`test_stt_gate.py`、
   `test_command_router_hotkeys.py`、`test_command_router_workspace.py`、
-  `test_command_router_session.py`、`test_command_router_voice.py`
+  `test_command_router_session.py`、`test_command_router_voice.py`、
+  `test_chat_flow.py`
 - 框架整合測試：`tests/test_core_integration.py`（生產者→Exchange→消費者全鏈）、
   `test_voice_flow_integration.py`（語音資料流：audio→STT→當前工作區）、
-  `test_command_flow_integration.py`（指令流：熱鍵／語音指令／終端全鏈）
+  `test_command_flow_integration.py`（指令流：熱鍵／語音指令／終端全鏈）、
+  `test_chat_flow_integration.py`（聊天流：HTTP 往返／摘要／重播全鏈）
 - 執行：`python3 -m unittest discover -s tests`（unittest，非 pytest）
 
 ## 相關文件
