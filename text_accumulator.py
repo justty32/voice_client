@@ -1,15 +1,20 @@
 import configparser
-import json
 import logging
 import os
 import threading
 import time
 from queue import Empty, Queue
 
+from workspace import Workspace
+
 log = logging.getLogger(__name__)
 
 class TextAccumulator:
-    """文字累積與緩存中心。"""
+    """文字累積與緩存中心（buffer 工作區）。
+
+    內部以 Workspace 承載暫存內容：每筆輸入文字為一個 entry。對外指令行為
+    （flush/peek/clear/concat/to_top/export/import）與訊息格式維持不變。
+    """
 
     def __init__(
         self,
@@ -22,7 +27,7 @@ class TextAccumulator:
         self._cmd_queue = cmd_queue
         self._output_queue = acc_output_queue
 
-        self._buffer: list[str] = []
+        self._ws = Workspace("buffer")
         self._running = False
         self._thread: threading.Thread | None = None
 
@@ -39,11 +44,10 @@ class TextAccumulator:
 
     def stop(self):
         self._running = False
-        if self._buffer:
+        if not self._ws.is_empty():
             temp_path = os.path.join(os.path.dirname(self._export_path) or ".", "_buffer_temp.json")
             try:
-                with open(temp_path, "w", encoding="utf-8") as f:
-                    json.dump(self._buffer, f, ensure_ascii=False, indent=2)
+                self._ws.export(temp_path)
                 log.info("Auto-saved buffer to %s", temp_path)
             except Exception as e:
                 log.error("Failed to auto-save buffer: %s", e)
@@ -60,7 +64,7 @@ class TextAccumulator:
             try:
                 item = self._input_queue.get_nowait()
                 if item.get("type") == "text" and item.get("text", "").strip():
-                    self._buffer.append(item["text"])
+                    self._ws.append(item["text"])
             except Empty:
                 pass
 
@@ -96,11 +100,11 @@ class TextAccumulator:
             else:
                 # Export 不再提供預設路徑，強制要求參數
                 return None
-        
+
         # Ensure filename has extension, default .json
         if "." not in filename:
             filename += ".json"
-            
+
         # If it's just a filename, put it in the same directory as default export
         # Check both / and \ for cross-platform robustness
         if os.sep not in filename and "/" not in filename and "\\" not in filename:
@@ -109,9 +113,9 @@ class TextAccumulator:
         return filename
 
     def _peek(self):
-        if self._buffer:
-            lines = "\n".join(f"  [{i+1}] {t}" for i, t in enumerate(self._buffer))
-            text = f"[暫存區 · {len(self._buffer)} 筆]\n{lines}"
+        if not self._ws.is_empty():
+            lines = "\n".join(f"  [{i+1}] {t}" for i, t in enumerate(self._ws.lines()))
+            text = f"[暫存區 · {self._ws.count()} 筆]\n{lines}"
         else:
             text = "[暫存區是空的]"
         self._output_queue.put({"type": "buffer_peek", "text": text})
@@ -123,18 +127,7 @@ class TextAccumulator:
             return
 
         try:
-            # Ensure directory exists
-            export_dir = os.path.dirname(path)
-            if export_dir:
-                os.makedirs(export_dir, exist_ok=True)
-            
-            if path.lower().endswith(".txt"):
-                with open(path, "w", encoding="utf-8") as f:
-                    f.write("\n".join(self._buffer))
-            else:
-                with open(path, "w", encoding="utf-8") as f:
-                    json.dump(self._buffer, f, ensure_ascii=False, indent=2)
-            
+            self._ws.export(path)
             msg = f"[系統] 暫存區已匯出至: {path}"
             log.info("Exported buffer to %s", path)
         except Exception as e:
@@ -147,57 +140,45 @@ class TextAccumulator:
         if not path or not os.path.exists(path):
             self._output_queue.put({"type": "buffer_peek", "text": f"[錯誤] 找不到檔案: {path if path else ''}"})
             return
-            
+
         try:
-            if path.lower().endswith(".txt"):
-                with open(path, "r", encoding="utf-8") as f:
-                    lines = f.readlines()
-                new_items = [line.strip() for line in lines if line.strip()]
-                self._buffer.extend(new_items)
-                msg = f"[系統] 已從 {path} 匯入 {len(new_items)} 行文字（追加至末尾）。"
-            else:
-                with open(path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                if isinstance(data, list):
-                    new_items = [str(item) for item in data]
-                    self._buffer.extend(new_items)
-                    msg = f"[系統] 已從 {path} 匯入 {len(new_items)} 筆資料（追加至末尾）。"
-                else:
-                    msg = "[錯誤] 匯入格式不正確，應為 JSON 陣列。"
+            added = self._ws.import_file(path, append=True)
+            unit = "行文字" if path.lower().endswith(".txt") else "筆資料"
+            msg = f"[系統] 已從 {path} 匯入 {added} {unit}（追加至末尾）。"
             log.info("Imported buffer from %s (appended)", path)
+        except ValueError as e:
+            # 例如 JSON 不是陣列
+            msg = f"[錯誤] {e}"
+            log.error("Import failed: %s", e)
         except Exception as e:
             msg = f"[錯誤] 匯入失敗: {e}"
             log.error("Import failed: %s", e)
         self._output_queue.put({"type": "buffer_peek", "text": msg})
 
     def _clear(self):
-        count = len(self._buffer)
-        self._buffer.clear()
+        count = self._ws.clear()
         self._output_queue.put({"type": "buffer_peek", "text": f"[系統] 暫存區已清空（原含 {count} 筆）。"})
         log.info("Cleared buffer.")
 
     def _concat(self):
-        if not self._buffer:
+        if self._ws.is_empty():
             return
-        count = len(self._buffer)
-        combined = " ".join(self._buffer)
-        self._buffer = [combined]
+        count = self._ws.count()
+        self._ws.concat_all(" ")
         self._output_queue.put({"type": "buffer_peek", "text": f"[系統] 已連接暫存區文字（將 {count} 筆壓縮為 1 筆）。"})
         log.info("Concatenated buffer.")
 
     def _to_top(self):
-        if len(self._buffer) < 2:
+        if not self._ws.move_to_top():
             return
-        last_item = self._buffer.pop()
-        self._buffer.insert(0, last_item)
         self._output_queue.put({"type": "buffer_peek", "text": "[系統] 已將最後一筆文字移至最前方。"})
         log.info("Moved last item to top.")
 
     def _flush(self):
-        if not self._buffer:
+        if self._ws.is_empty():
             return
-        combined = " ".join(self._buffer)
-        self._buffer.clear()
+        combined = self._ws.flatten(seg_sep=" ", entry_sep=" ")
+        self._ws.clear()
 
         if not combined.strip():
             return
