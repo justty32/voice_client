@@ -67,5 +67,41 @@ class TestExchangeRouting(unittest.TestCase):
         self.assertEqual(ib.get_nowait().payload, "ok")
 
 
+class TestExchangeLifecycle(unittest.TestCase):
+    def test_start_stop_moves_messages(self):
+        ex = Exchange(idle_sleep=0.001)
+        ob, ib = Outbox(), Inbox()
+        ex.register_producer("p", ob)
+        ex.register_consumer("t", ib)
+        ex.start()
+        try:
+            ob.put(Message(topic="t", payload="hi"))
+            msg = ib.get(timeout=1)
+            self.assertEqual(msg.payload, "hi")
+        finally:
+            ex.stop()
+
+    def test_stop_joins_thread(self):
+        ex = Exchange(idle_sleep=0.001)
+        ex.start()
+        ex.stop()
+        self.assertIsNone(ex._thread)
+
+    def test_loop_survives_broken_producer(self):
+        ex = Exchange(idle_sleep=0.001)
+        bad = mock.Mock()
+        bad.get_nowait.side_effect = RuntimeError("boom")
+        ex.register_producer("bad", bad)
+        ob, ib = Outbox(), Inbox()
+        ex.register_producer("good", ob)
+        ex.register_consumer("t", ib)
+        ex.start()
+        try:
+            ob.put(Message(topic="t", payload="ok"))
+            self.assertEqual(ib.get(timeout=1).payload, "ok")
+        finally:
+            ex.stop()
+
+
 if __name__ == "__main__":
     unittest.main()

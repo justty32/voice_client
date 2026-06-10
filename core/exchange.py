@@ -6,6 +6,7 @@
 
 import logging
 import queue
+import threading
 import time
 
 from core.endpoint import Inbox, Outbox
@@ -19,6 +20,8 @@ class Exchange:
         self._routes: dict[str, Inbox] = {}
         self._idle_sleep = idle_sleep
         self._rr = 0  # round-robin 起點，避免固定順序餓死後面的生產者
+        self._running = False
+        self._thread: threading.Thread | None = None
 
     # ── 註冊 ──────────────────────────────────────────────────────
     def register_producer(self, name: str, outbox: Outbox) -> None:
@@ -52,3 +55,25 @@ class Exchange:
             log.debug("%s --[%s]--> consumer", name, msg.topic)
             return True
         return False
+
+    # ── 生命週期 ───────────────────────────────────────────────────
+    def start(self) -> None:
+        self._running = True
+        self._thread = threading.Thread(target=self._run, name="exchange", daemon=True)
+        self._thread.start()
+
+    def _run(self) -> None:
+        while self._running:
+            try:
+                moved = self.tick()
+            except Exception:
+                log.exception("exchange tick 失敗")
+                moved = False
+            if not moved:
+                time.sleep(self._idle_sleep)
+
+    def stop(self) -> None:
+        self._running = False
+        if self._thread is not None:
+            self._thread.join(timeout=2)
+            self._thread = None
