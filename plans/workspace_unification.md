@@ -71,6 +71,7 @@
 | 指令 | 動作 | 對應 Workspace 方法 |
 |------|------|---------------------|
 | `/show`（別名 `/peek`） | 列出內容（含 1-based 編號） | `lines()` |
+| `/clear` | 清空當前工作區（`/clear <名稱>` 清指定、`/clear ui` 清畫面） | `clear()` |
 | `/del <i>` | 刪除第 i 筆 | `delete(i-1)` |
 | `/move <i> <j>` | 把第 i 筆移到第 j 位 | `move(i-1, j-1)` |
 | `/totop [i]` | 把第 i 筆（預設最後一筆）移到最前 | `move_to_top()` |
@@ -83,7 +84,11 @@
 重構會碰到三個既有指令的語意衝突，**需先定案**（文件先列出建議）：
 
 1. **`/clear`**：舊行為 `/clear` = 清 UI 畫面、`/clear buffer` = 清暫存。
-   - 建議：`/clear` 仍預設清 UI（向後相容）；清工作區改用 `/clear ws`（清當前）或 `/clear <stt|buffer|chat>`。`/clear buffer` 保留為別名。
+   - **定案**：`/clear` = 清**當前工作區**。
+     - `/clear` → 清當前工作區。
+     - `/clear <stt|buffer|chat>` → 清指定工作區（`/clear buffer` 行為與舊版相同，仍有效）。
+     - `/clear ui` → 清 UI 畫面（原 `/clear` 的清畫面功能改為明確指令）。
+   - 影響：原本「無參數 `/clear` 清畫面」的行為改變，需同步更新 `/help`、語音指令（「清除畫面」→ `/clear ui`）、手機端與 `app.js`。
 2. **`/delete <title>`**：舊行為 = 刪除 session（屬 chat 工作區集合的操作）。
    - 建議：session 層維持 `/delete <title>`；工作區內單筆刪除用新指令 `/del <i>`，避免撞名。
 3. **`/send`**：目前只對 buffer 有意義。
