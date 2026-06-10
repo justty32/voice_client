@@ -38,6 +38,7 @@
 core/
   message.py    Message：topic、payload、source、時間戳
   endpoint.py   Outbox / Inbox：模組與交換核心的唯一介接點
+  adapter.py    OutboxAdapter / InboxAdapter：既有裸 queue 模組的零改寫橋接
   exchange.py   Exchange：單執行緒交換迴圈＋路由表（topic → 消費者 inbox）
                 ※「通道」即路由表中的 topic 註冊，不需獨立的 channel 類別
   module.py     TunnelModule 基底類別：宣告 consumes，管理自身執行緒

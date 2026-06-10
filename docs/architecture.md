@@ -33,6 +33,7 @@ LLM，回覆再經摘要（本地 SLM）與 TTS 朗讀。
 | `core/endpoint.py` | `Outbox`（模組→交換核心）／`Inbox`（交換核心→模組），模組與核心的唯一介接點 |
 | `core/exchange.py` | `Exchange`：路由表（topic → 消費者 inbox）＋單執行緒交換迴圈 |
 | `core/module.py` | `TunnelModule` 基底類別：`attach`／`emit`／消費迴圈／錯誤隔離 |
+| `core/adapter.py` | `OutboxAdapter`／`InboxAdapter`：把既有模組的裸 queue 偽裝成 Outbox/Inbox，零改寫掛上 Exchange |
 
 ### 2.1 交換語意
 
@@ -92,7 +93,7 @@ LLM，回覆再經摘要（本地 SLM）與 TTS 朗讀。
 | 現有檔案 | 去向 |
 |---|---|
 | `main.py` 路由邏輯 | 拆入 CommandRouter／ChatFlow／WorkspaceManager |
-| `record.py`、`voice_to_text.py` | 改為框架生產者／消費者（階段②） |
+| `record.py`、`voice_to_text.py` | 經 `core/adapter.py` 轉接器掛上框架（階段②，模組本體零修改） |
 | `text_accumulator.py`、`workspace_controller.py`、`workspace.py` | 合併為 WorkspaceManager（階段②③） |
 | `terminal_input.py`、`keyboard_listener.py` | 改為 `commands` 生產者（階段③） |
 | `http_client.py`、`summary_generator.py`、`session_manager.py` | 聊天流（階段④） |
@@ -102,7 +103,7 @@ LLM，回覆再經摘要（本地 SLM）與 TTS 朗讀。
 ## 6. 遷移路線圖
 
 - ✅ **階段①**：`core/` 框架本體＋29 個測試（不接業務模組）
-- ⬜ **階段②**：語音資料流——Recorder、STT、WorkspaceManager 掛上框架
+- ✅ **階段②**：語音資料流——轉接器橋接 Recorder/STT、WorkspaceManager 上線
 - ⬜ **階段③**：指令流——終端、熱鍵、語音指令改為生產者；CommandRouter 上線
 - ⬜ **階段④**：聊天流——HttpClient、ChatFlow、SummaryGenerator
 - ⬜ **階段⑤**：呈現層收尾——TuiRenderer、TTS；移除舊 main.py 路由
@@ -121,8 +122,10 @@ LLM，回覆再經摘要（本地 SLM）與 TTS 朗讀。
 ## 8. 測試
 
 - 框架單元測試：`tests/test_core_message.py`、`test_core_endpoint.py`、
-  `test_core_exchange.py`、`test_core_module.py`
-- 框架整合測試：`tests/test_core_integration.py`（生產者→Exchange→消費者全鏈）
+  `test_core_exchange.py`、`test_core_module.py`、`test_core_adapter.py`
+- 業務模組測試：`tests/test_workspace_manager.py`
+- 框架整合測試：`tests/test_core_integration.py`（生產者→Exchange→消費者全鏈）、
+  `test_voice_flow_integration.py`（語音資料流：audio→STT→當前工作區）
 - 執行：`python3 -m unittest discover -s tests`（unittest，非 pytest）
 
 ## 相關文件
