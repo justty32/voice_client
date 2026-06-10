@@ -70,9 +70,9 @@ class CommandRouter(TunnelModule):
         cmd = cmd_item.get("cmd", "")
 
         if cmd == "record_toggle":
-            self._handle_record_toggle(mode="normal")
+            self._handle_record_toggle(mode="normal", set_mode_on_stop=True)
         elif cmd == "record_command_toggle":
-            self._handle_record_toggle(mode="command")
+            self._handle_record_toggle(mode="command", set_mode_on_stop=False)
         elif cmd == "quick_send":
             self._handle_quick_send()
         elif cmd == "force_stop_tts":
@@ -89,10 +89,14 @@ class CommandRouter(TunnelModule):
 
     # ── 熱鍵處理（port main.py:120-141）─────────────────────────────────
 
-    def _handle_record_toggle(self, mode: str) -> None:
-        """翻轉錄音狀態；開始錄音時同步設定 gate_ctl 模式。
+    def _handle_record_toggle(self, mode: str, set_mode_on_stop: bool) -> None:
+        """翻轉錄音狀態；依舊版語意設定 gate_ctl 模式。
 
-        :param mode: 錄音開始時傳給 SttGate 的模式（"normal" 或 "command"）。
+        舊 main.py 語意：RECORD_TOGGLE 不論開始/停止一律把 is_command_mode
+        清為 False；RECORD_COMMAND_TOGGLE 只在開始時設 True、停止時不變。
+
+        :param mode: 傳給 SttGate 的模式（"normal" 或 "command"）。
+        :param set_mode_on_stop: 停止錄音時是否也送 gate_ctl（F8=是、F7=否）。
         """
         self._is_recording = not self._is_recording
         if self._is_recording:
@@ -100,6 +104,8 @@ class CommandRouter(TunnelModule):
             self.emit("gate_ctl", {"mode": mode})
         else:
             self.emit("recorder_ctl", "STOP")
+            if set_mode_on_stop:
+                self.emit("gate_ctl", {"mode": mode})
 
     def _handle_quick_send(self) -> None:
         """Task 3 完整實作前的佔位處理。"""

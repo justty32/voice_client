@@ -47,17 +47,37 @@ class TestCommandRouterHotkeys(unittest.TestCase):
         self.assertIn("gate_ctl", topics)
         self.assertEqual(topics["gate_ctl"], {"mode": "normal"})
 
-    # ── 2. 第二次 "RECORD_TOGGLE" → recorder_ctl "STOP"，無 gate_ctl ────────
-    def test_record_toggle_second_emits_stop_no_gate_ctl(self):
+    # ── 2. 第二次 "RECORD_TOGGLE" → STOP＋gate_ctl normal（舊版停止也清 command）─
+    def test_record_toggle_second_emits_stop_and_gate_normal(self):
         self.router.handle(Message(topic="commands", payload="RECORD_TOGGLE"))
         _drain(self.router)  # 清掉第一次
         self.router.handle(Message(topic="commands", payload="RECORD_TOGGLE"))
         msgs = _drain(self.router)
+        topics = {m.topic: m.payload for m in msgs}
+        self.assertEqual(topics["recorder_ctl"], "STOP")
+        # 舊 main.py：RECORD_TOGGLE 不論開始/停止一律清 is_command_mode
+        self.assertEqual(topics["gate_ctl"], {"mode": "normal"})
+
+    # ── 2b. F7 停止錄音時不送 gate_ctl（舊版停止時 is_command_mode 不變）────
+    def test_command_toggle_stop_keeps_mode(self):
+        self.router.handle(Message(topic="commands", payload="RECORD_COMMAND_TOGGLE"))
+        _drain(self.router)
+        self.router.handle(Message(topic="commands", payload="RECORD_COMMAND_TOGGLE"))
+        msgs = _drain(self.router)
         topics = [m.topic for m in msgs]
-        self.assertIn("recorder_ctl", topics)
+        self.assertNotIn("gate_ctl", topics)
         recorder_payload = next(m.payload for m in msgs if m.topic == "recorder_ctl")
         self.assertEqual(recorder_payload, "STOP")
-        self.assertNotIn("gate_ctl", topics)
+
+    # ── 2c. F7 開始 → F8 停止：gate 收到 normal（舊版 F8 一律清 command 模式）─
+    def test_f7_start_f8_stop_clears_command_mode(self):
+        self.router.handle(Message(topic="commands", payload="RECORD_COMMAND_TOGGLE"))
+        _drain(self.router)
+        self.router.handle(Message(topic="commands", payload="RECORD_TOGGLE"))
+        msgs = _drain(self.router)
+        topics = {m.topic: m.payload for m in msgs}
+        self.assertEqual(topics["recorder_ctl"], "STOP")
+        self.assertEqual(topics["gate_ctl"], {"mode": "normal"})
 
     # ── 3. "RECORD_COMMAND_TOGGLE" → recorder_ctl "START" + gate_ctl command ─
     def test_record_command_toggle_emits_start_and_gate_command(self):
