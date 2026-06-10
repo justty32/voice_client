@@ -3,8 +3,11 @@
 消費 stt_text 與 gate_ctl 兩個 topic：
 - gate_ctl 訊息依 {"mode": "normal"|"command"} 切換內部模式；非法值忽略。
 - stt_text 訊息依當前模式分流：
-  - normal  → emit raw_text（進 WorkspaceManager）
-  - command → emit commands {"cmd": "voice", "args": [text]}（進 CommandRouter）
+  - normal  → 先 emit ui_event {"type":"message","role":"voice","text":text}
+              讓使用者看到辨識結果（對齊 main.py:168），
+              再 emit raw_text（進 WorkspaceManager）。
+  - command → emit commands {"cmd": "voice", "args": [text]}（進 CommandRouter）；
+              [語音指令] 的 UI 顯示由 CommandRouter 負責，此處不重複發射。
   空白文字（strip() 為空）兩種模式下均直接丟棄，不發任何訊息。
 
 模式在語音指令轉發後維持 command，直到 gate_ctl 切換為止，
@@ -54,6 +57,8 @@ class SttGate(TunnelModule):
         if not text.strip():
             return
         if self._mode == "normal":
+            # 先讓使用者看到辨識結果（port main.py:168）
+            self.emit("ui_event", {"type": "message", "role": "voice", "text": text})
             self.emit("raw_text", text)
         else:
             self.emit("commands", {"cmd": "voice", "args": [text]})

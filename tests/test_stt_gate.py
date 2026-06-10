@@ -28,25 +28,57 @@ class TestSttGate(unittest.TestCase):
                 break
         return msgs
 
-    # ── 1. 預設模式 normal：stt_text → raw_text ────────────────────
+    # ── 1. 預設模式 normal：stt_text → ui_event(voice) + raw_text ──────────
     def test_default_mode_is_normal(self):
         self.assertEqual(self.gate.mode, "normal")
 
-    def test_normal_mode_routes_stt_text_to_raw_text(self):
+    def test_normal_mode_emits_ui_event_before_raw_text(self):
+        """normal 模式先發射 ui_event(voice)，再發射 raw_text（順序必須正確）。"""
         self.gate.handle(Message(topic="stt_text", payload="你好"))
         msgs = self._drain()
-        self.assertEqual(len(msgs), 1)
-        self.assertEqual(msgs[0].topic, "raw_text")
-        self.assertEqual(msgs[0].payload, "你好")
+        self.assertEqual(len(msgs), 2, "normal 模式應發射 2 條訊息")
+        self.assertEqual(msgs[0].topic, "ui_event")
+        self.assertEqual(msgs[1].topic, "raw_text")
 
-    # ── 2. gate_ctl command → stt_text 路由到 commands ────────────
+    def test_normal_mode_ui_event_has_voice_role(self):
+        """normal 模式的 ui_event payload 必須含 role=voice、text=辨識文字。"""
+        self.gate.handle(Message(topic="stt_text", payload="你好"))
+        msgs = self._drain()
+        ui_msg = msgs[0]
+        self.assertEqual(ui_msg.payload.get("type"), "message")
+        self.assertEqual(ui_msg.payload.get("role"), "voice")
+        self.assertEqual(ui_msg.payload.get("text"), "你好")
+
+    def test_normal_mode_raw_text_payload_equals_input(self):
+        """normal 模式的 raw_text payload 必須等於辨識文字。"""
+        self.gate.handle(Message(topic="stt_text", payload="你好"))
+        msgs = self._drain()
+        raw_msg = msgs[1]
+        self.assertEqual(raw_msg.topic, "raw_text")
+        self.assertEqual(raw_msg.payload, "你好")
+
+    # ── 2. gate_ctl command → stt_text 路由到 commands（不發 ui_event）───────
     def test_command_mode_routes_stt_text_to_commands(self):
+        """command 模式只發射 commands，不發 ui_event voice 訊息。"""
         self.gate.handle(Message(topic="gate_ctl", payload={"mode": "command"}))
         self.gate.handle(Message(topic="stt_text", payload="發送"))
         msgs = self._drain()
-        self.assertEqual(len(msgs), 1)
+        self.assertEqual(len(msgs), 1, "command 模式應只發射 1 條訊息（commands）")
         self.assertEqual(msgs[0].topic, "commands")
         self.assertEqual(msgs[0].payload, {"cmd": "voice", "args": ["發送"]})
+
+    def test_command_mode_does_not_emit_voice_ui_event(self):
+        """command 模式不可發射 role=voice 的 ui_event（[語音指令] 顯示由 CommandRouter 負責）。"""
+        self.gate.handle(Message(topic="gate_ctl", payload={"mode": "command"}))
+        self._drain()
+        self.gate.handle(Message(topic="stt_text", payload="刪除"))
+        msgs = self._drain()
+        voice_ui_events = [
+            m for m in msgs
+            if m.topic == "ui_event" and isinstance(m.payload, dict)
+               and m.payload.get("role") == "voice"
+        ]
+        self.assertEqual(voice_ui_events, [], "command 模式不應發射 voice ui_event")
 
     # ── 3. gate_ctl normal 切回 ────────────────────────────────────
     def test_gate_ctl_switches_back_to_normal(self):
@@ -56,8 +88,10 @@ class TestSttGate(unittest.TestCase):
         self.assertEqual(self.gate.mode, "normal")
         self.gate.handle(Message(topic="stt_text", payload="回到正常"))
         msgs = self._drain()
-        self.assertEqual(len(msgs), 1)
-        self.assertEqual(msgs[0].topic, "raw_text")
+        # 現在應有 2 條：ui_event + raw_text
+        self.assertEqual(len(msgs), 2)
+        # 最後一條是 raw_text
+        self.assertEqual(msgs[-1].topic, "raw_text")
 
     # ── 4. 非法 gate_ctl 忽略，模式不變，無任何發射 ───────────────
     def test_invalid_gate_ctl_dict_is_ignored(self):
