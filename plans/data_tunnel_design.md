@@ -37,10 +37,10 @@
 ```
 core/
   message.py    Message：topic、payload、source、時間戳
-  channel.py    Channel：具名佇列（thread-safe），框架內部使用
   endpoint.py   Outbox / Inbox：模組與交換核心的唯一介接點
   exchange.py   Exchange：單執行緒交換迴圈＋路由表（topic → 消費者 inbox）
-  module.py     TunnelModule 基底類別：宣告 produces / consumes，管理自身執行緒
+                ※「通道」即路由表中的 topic 註冊，不需獨立的 channel 類別
+  module.py     TunnelModule 基底類別：宣告 consumes，管理自身執行緒
 ```
 
 ### 交換核心（Exchange）語意
