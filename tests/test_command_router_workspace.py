@@ -75,7 +75,7 @@ class TestWsCommand(unittest.TestCase):
         self._tmp.cleanup()
 
     def test_ws_no_args_lists_workspaces(self):
-        """Test 1: /ws 無參數列出 buffer、stt 並標示當前，顯示 chat（階段④接入）"""
+        """Test 1: /ws 無參數列出 buffer、stt 並標示當前，chat 顯示真實筆數"""
         msgs = cmd(self.router, "/ws")
         self.assertEqual(len(msgs), 1)
         self.assertEqual(msgs[0].topic, "ui_event")
@@ -84,9 +84,9 @@ class TestWsCommand(unittest.TestCase):
         self.assertIn("stt", text)
         # 當前工作區 buffer 應有標示
         self.assertIn("當前", text)
-        # chat 應顯示階段④接入
+        # chat 應出現並顯示筆數（不再是階段④佔位訊息）
         self.assertIn("chat", text)
-        self.assertIn("階段④", text)
+        self.assertNotIn("階段④", text)
 
     def test_ws_no_args_shows_counts(self):
         """Test 1b: /ws 無參數顯示各工作區筆數"""
@@ -203,11 +203,41 @@ class TestClearCommand(unittest.TestCase):
         self.assertIn("stt", text)
         self.assertTrue(self.wm.get("stt").is_empty())
 
-    def test_clear_chat_returns_stage4_message(self):
-        """Test 4e: /clear chat 回傳階段④訊息"""
+    def test_clear_chat_clears_history_and_reports_count(self):
+        """Test 4e: /clear chat 清空 sm history 並回報原筆數"""
+        # 種入 3 則歷史
+        self.sm.add_message("user", "msg1")
+        self.sm.add_message("assistant", "reply1")
+        self.sm.add_message("user", "msg2")
         msgs = cmd(self.router, "/clear", ["chat"])
         text = msgs[0].payload["text"]
-        self.assertIn("階段④", text)
+        self.assertIn("已清空", text)
+        self.assertIn("3", text)
+        self.assertIn("chat", text)
+        # 確認 sm history 已清空
+        self.assertEqual(self.sm.message_count(), 0)
+
+    def test_clear_chat_sm_none_friendly_message(self):
+        """Test 4f: /clear chat 在 _sm 為 None 時回傳友善訊息，不 AttributeError"""
+        router_no_sm, wm_ns, _ = make_router(self._tmp.name, sm=None)
+        # 需要手動建一個 session_manager=None 的 router
+        from modules.workspace_manager import WorkspaceManager as WM
+        wm2 = WM()
+        from modules.command_router import CommandRouter as CR
+        r2 = CR(workspace_manager=wm2, session_manager=None, export_dir=self._tmp.name)
+        payload = {"cmd": "/clear", "args": ["chat"]}
+        r2.handle(Message(topic="commands", payload=payload))
+        result = []
+        while True:
+            try:
+                result.append(r2.outbox.get_nowait())
+            except Exception:
+                break
+        self.assertEqual(len(result), 1)
+        text = result[0].payload["text"]
+        # 不應崩潰，應有友善文字
+        self.assertIsInstance(text, str)
+        self.assertGreater(len(text), 0)
 
 
 class TestDelCommand(unittest.TestCase):
@@ -564,6 +594,88 @@ class TestQuickSend(unittest.TestCase):
         topics = [m.topic for m in msgs]
         self.assertNotIn("outbound", topics)
         self.assertIn("ui_event", topics)
+
+
+class TestWsChatCount(unittest.TestCase):
+    """/ws 無參數 — chat 行顯示真實歷史筆數（Task 4 新測試）"""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.router, self.wm, self.sm = make_router(self._tmp.name)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_ws_chat_count_zero(self):
+        """chat 歷史為空時顯示 0 筆"""
+        msgs = cmd(self.router, "/ws")
+        text = msgs[0].payload["text"]
+        # chat 行應含 '0 筆'
+        import re
+        chat_line = next(ln for ln in text.splitlines() if "chat" in ln)
+        self.assertIn("0", chat_line)
+
+    def test_ws_chat_count_after_add(self):
+        """加入 2 則歷史後 /ws 顯示 2 筆"""
+        self.sm.add_message("user", "hello")
+        self.sm.add_message("assistant", "hi")
+        msgs = cmd(self.router, "/ws")
+        text = msgs[0].payload["text"]
+        chat_line = next(ln for ln in text.splitlines() if "chat" in ln)
+        self.assertIn("2", chat_line)
+
+    def test_ws_chat_no_sm_shows_zero_or_omits(self):
+        """_sm 為 None 時 /ws chat 行顯示 0 筆（或省略），不崩潰"""
+        from modules.workspace_manager import WorkspaceManager as WM
+        from modules.command_router import CommandRouter as CR
+        wm2 = WM()
+        r2 = CR(workspace_manager=wm2, session_manager=None, export_dir=self._tmp.name)
+        r2.handle(Message(topic="commands", payload={"cmd": "/ws", "args": []}))
+        result = []
+        while True:
+            try:
+                result.append(r2.outbox.get_nowait())
+            except Exception:
+                break
+        self.assertEqual(len(result), 1)
+        text = result[0].payload["text"]
+        # 至少有 buffer 和 stt，不崩潰
+        self.assertIn("buffer", text)
+
+
+class TestWsChatReadonly(unittest.TestCase):
+    """/ws chat 應回唯讀提示，不允許切換"""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.router, self.wm, self.sm = make_router(self._tmp.name)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_ws_chat_returns_readonly_message(self):
+        """/ws chat 回「chat 為唯讀檢視」提示，current 不變"""
+        original_current = self.wm.current
+        msgs = cmd(self.router, "/ws", ["chat"])
+        self.assertEqual(len(msgs), 1)
+        text = msgs[0].payload["text"]
+        self.assertIn("唯讀", text)
+        self.assertIn("chat", text)
+        # current 工作區不應變更
+        self.assertEqual(self.wm.current, original_current)
+
+    def test_ws_chat_message_mentions_history_and_clear(self):
+        """/ws chat 訊息提及 /history 與 /clear chat"""
+        msgs = cmd(self.router, "/ws", ["chat"])
+        text = msgs[0].payload["text"]
+        self.assertIn("/history", text)
+        self.assertIn("/clear chat", text)
+
+    def test_ws_chat_not_set_as_current(self):
+        """wm.switch('chat') 不應被呼叫 — chat 不可成為當前工作區"""
+        # 在切換後 current 仍為 buffer（預設）
+        cmd(self.router, "/ws", ["chat"])
+        self.assertNotEqual(self.wm.current, "chat")
 
 
 if __name__ == "__main__":

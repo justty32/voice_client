@@ -184,7 +184,11 @@ class CommandRouter(TunnelModule):
         self.emit("ui_event", {"type": "message", "role": "system", "text": text})
 
     def _handle_ws(self, args: list) -> None:
-        """無參數 → 列出工作區與筆數；有參數 → 切換當前工作區。"""
+        """無參數 → 列出工作區與筆數；有參數 → 切換當前工作區。
+
+        chat 行顯示真實歷史筆數（port workspace_controller.handle_ws:67）。
+        _sm 為 None 時 chat 顯示 0 筆（SM 未接入，安全降級）。
+        """
         if not args:
             lines = ["工作區列表:"]
             for name in self._wm.names():
@@ -192,12 +196,23 @@ class CommandRouter(TunnelModule):
                 ws = self._wm.get(name)
                 count = ws.count() if ws is not None else 0
                 lines.append(f"  - {name}{mark} · {count} 筆")
-            # chat 工作區於階段④接入
-            lines.append("  - chat（階段④接入）")
+            # chat：顯示真實歷史筆數；_sm None 時安全降級為 0 筆
+            chat_count = self._sm.message_count() if self._sm is not None else 0
+            lines.append(f"  - chat · {chat_count} 筆")
             self._ui_msg("\n".join(lines))
             return
 
         name = args[0].lower()
+
+        # 設計決議：chat 不可成為當前工作區（raw_text 永不流入 chat）。
+        # 提示用戶改用 /history / /clear chat 操作。
+        if name == "chat":
+            self._ui_msg(
+                "chat 為唯讀檢視：請用 /history 檢視、/clear chat 清空"
+                "（raw_text 不流入 chat）"
+            )
+            return
+
         if self._wm.switch(name):
             self._ui_msg(f"已切換當前工作區至: {name}")
         else:
@@ -224,7 +239,13 @@ class CommandRouter(TunnelModule):
             return
 
         if target == "chat":
-            self._ui_msg("chat 工作區於階段④接入")
+            # port workspace_controller.py:104-106 verbatim。
+            # _sm None 防禦：給友善訊息（與其他對話指令的 None 防禦模式一致）。
+            if self._sm is None:
+                self._ui_msg("[系統] chat 工作區尚未接入 SessionManager。")
+                return
+            n = self._sm.clear_history()
+            self._ui_msg(f"[系統] chat 工作區（對話歷史）已清空（原含 {n} 筆）。")
             return
 
         ws = self._wm.get(target)
@@ -537,11 +558,8 @@ class CommandRouter(TunnelModule):
         self.emit("ui_event", {"type": "status", "text": "待機"})
 
     def _handle_play_last(self) -> None:
-        self.emit("ui_event", {
-            "type": "message",
-            "role": "system",
-            "text": "重播功能於階段④接入",
-        })
+        # 發 chat_ctl play_last；由 ChatFlow（階段④）消費並重播最後一次回覆。
+        self.emit("chat_ctl", {"cmd": "play_last"})
 
     # ── 對話管理指令（Task 4，port main.py:264-343）──────────────────────
 

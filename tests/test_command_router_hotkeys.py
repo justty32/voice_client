@@ -142,12 +142,14 @@ class TestCommandRouterHotkeys(unittest.TestCase):
         self.assertEqual(msgs[0].topic, "ui_event")
         self.assertEqual(msgs[0].payload["type"], "message")
 
-    # ── 9. "PLAY_LAST_ORIGINAL" → ui_event placeholder 訊息 ──────────────────
-    def test_play_last_emits_placeholder_ui_event(self):
+    # ── 9. "PLAY_LAST_ORIGINAL" → chat_ctl {"cmd":"play_last"} ──────────────────
+    def test_play_last_emits_chat_ctl(self):
+        """PLAY_LAST_ORIGINAL 應 emit chat_ctl {"cmd":"play_last"}，由 ChatFlow 消費。"""
         self.router.handle(Message(topic="commands", payload="PLAY_LAST_ORIGINAL"))
         msgs = _drain(self.router)
         self.assertEqual(len(msgs), 1)
-        self.assertEqual(msgs[0].topic, "ui_event")
+        self.assertEqual(msgs[0].topic, "chat_ctl")
+        self.assertEqual(msgs[0].payload, {"cmd": "play_last"})
 
     # ── 10. 未知 dict 指令 → ui_event 未知指令 ───────────────────────────────
     def test_unknown_dict_cmd_emits_ui_event(self):
