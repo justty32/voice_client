@@ -194,7 +194,8 @@ class CommandRouter(TunnelModule):
         if self._wm.switch(name):
             self._ui_msg(f"已切換當前工作區至: {name}")
         else:
-            self._ui_msg(f"未知工作區: {name}（可用: buffer/stt）")
+            available = "/".join(self._wm.names())
+            self._ui_msg(f"未知工作區: {name}（可用: {available}）")
 
     def _handle_show(self) -> None:
         """顯示當前工作區內容（帶編號）。"""
@@ -319,9 +320,12 @@ class CommandRouter(TunnelModule):
 
     def _handle_export(self, args: list) -> None:
         """匯出當前工作區至檔案。"""
+        if not args:
+            self._ui_msg("[錯誤] 請指定匯出檔名。例如: /export my_data")
+            return
         name = self._wm.current
         ws = self._wm.get(name)
-        filename = " ".join(args) if args else "export"
+        filename = " ".join(args)
         path = resolve_filename(filename, self._export_dir)
         try:
             ws.export(path)
@@ -331,9 +335,12 @@ class CommandRouter(TunnelModule):
 
     def _handle_import(self, args: list) -> None:
         """從檔案匯入至當前工作區。"""
+        if not args:
+            self._ui_msg("[錯誤] 請指定匯入檔名。")
+            return
         name = self._wm.current
         ws = self._wm.get(name)
-        filename = " ".join(args) if args else "export"
+        filename = " ".join(args)
         path = resolve_filename(filename, self._export_dir)
         if not os.path.exists(path):
             self._ui_msg(f"[錯誤] 找不到檔案: {path}")
@@ -352,9 +359,9 @@ class CommandRouter(TunnelModule):
         Port 自 text_accumulator._flush + main.py 段落 F：
         - 僅 buffer 工作區有效
         - Content = buffer.flatten(seg_sep=" ", entry_sep=" ")
-        - payload 含 Type、Content、Title、Metadata.ClientTime
+        - payload 含 Content、Title、Metadata.ClientTime（無 Type）
         - add_message("user", content)、emit outbound、emit sending + status
-        - 最後清空 buffer
+        - 空白內容：清空 buffer 後回傳，不發 outbound
         """
         current = self._wm.current
         if current != "buffer":
@@ -366,13 +373,16 @@ class CommandRouter(TunnelModule):
             self._ui_msg("[系統] 緩衝區是空的。")
             return
 
-        # 與 text_accumulator._flush 相同的 join 語意
+        # 與 text_accumulator._flush 相同的 join 語意：flatten → clear → guard
         content = ws.flatten(seg_sep=" ", entry_sep=" ")
         ws.clear()
 
-        # 與 main.py 段落 F 相同的 payload 結構
+        if not content.strip():
+            self._ui_msg("[系統] 緩衝區是空的。")
+            return
+
+        # 與舊版 payload 結構相同（無 Type 鍵；http_client.py 不讀 Type）
         payload = {
-            "Type": "TextChat",
             "Content": content,
             "Title": (self._sm.current_title if self._sm is not None else None) or "default",
             "Metadata": {

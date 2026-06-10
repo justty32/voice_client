@@ -403,14 +403,22 @@ class TestExportImportCommands(unittest.TestCase):
         self.assertIn("2", import_msgs[0].payload["text"])
         self.assertEqual(ws.count(), 2)
 
-    def test_export_default_filename(self):
-        """Test 9b: /export 不帶參數使用預設檔名 export.json"""
+    def test_export_no_args_is_error(self):
+        """Test 9b: /export 不帶參數應報錯，要求指定檔名"""
         ws = self.wm.get("buffer")
         ws.append("data")
         msgs = cmd(self.router, "/export")
         self.assertEqual(len(msgs), 1)
         text = msgs[0].payload["text"]
-        self.assertIn("export", text)
+        self.assertIn("[錯誤]", text)
+        self.assertIn("/export", text)
+
+    def test_import_no_args_is_error(self):
+        """Test 9d: /import 不帶參數應報錯"""
+        msgs = cmd(self.router, "/import")
+        self.assertEqual(len(msgs), 1)
+        text = msgs[0].payload["text"]
+        self.assertIn("[錯誤]", text)
 
     def test_import_file_not_found(self):
         """Test 9c: /import 找不到檔案 → 錯誤訊息"""
@@ -452,7 +460,7 @@ class TestSendCommand(unittest.TestCase):
         self.assertIn("ui_event", topics)
 
     def test_send_with_content_outbound_payload(self):
-        """Test 12: buffer 有內容時 /send 發出正確 outbound payload"""
+        """Test 12: buffer 有內容時 /send 發出正確 outbound payload（無 Type 鍵）"""
         ws = self.wm.get("buffer")
         ws.append("hello")
         ws.append("world")
@@ -463,8 +471,8 @@ class TestSendCommand(unittest.TestCase):
         self.assertEqual(len(outbound_msgs), 1)
         payload = outbound_msgs[0].payload
 
-        # 檢查 payload 結構
-        self.assertEqual(payload["Type"], "TextChat")
+        # 舊版 payload 只有 Title、Content、Metadata.ClientTime，沒有 Type
+        self.assertNotIn("Type", payload)
         self.assertIn("hello", payload["Content"])
         self.assertIn("world", payload["Content"])
         self.assertEqual(payload["Title"], self.sm.current_title)
@@ -473,6 +481,17 @@ class TestSendCommand(unittest.TestCase):
         ct = payload["Metadata"]["ClientTime"]
         # 能正常解析
         datetime.fromisoformat(ct)
+
+    def test_send_whitespace_only_buffer_no_outbound(self):
+        """Test 12e: buffer 僅含空白字元時 /send 不發 outbound，清空 buffer，發 ui 訊息"""
+        ws = self.wm.get("buffer")
+        ws.append("   ")
+        ws.append("  \t  ")
+        msgs = cmd(self.router, "/send")
+        topics = [m.topic for m in msgs]
+        self.assertNotIn("outbound", topics)
+        self.assertIn("ui_event", topics)
+        self.assertTrue(ws.is_empty())
 
     def test_send_adds_to_session_history(self):
         """Test 12b: /send 把 content 加入 session 歷史"""
@@ -527,14 +546,14 @@ class TestQuickSend(unittest.TestCase):
         self.assertIn("ui_event", topics)
 
     def test_quick_send_with_content_goes_through_send_path(self):
-        """Test 13b: QUICK_SEND 有內容時發 outbound（與 /send 相同路徑）"""
+        """Test 13b: QUICK_SEND 有內容時發 outbound（與 /send 相同路徑，無 Type 鍵）"""
         ws = self.wm.get("buffer")
         ws.append("quick content")
         self.router.handle(Message(topic="commands", payload="QUICK_SEND"))
         msgs = drain(self.router)
         outbound_msgs = [m for m in msgs if m.topic == "outbound"]
         self.assertEqual(len(outbound_msgs), 1)
-        self.assertEqual(outbound_msgs[0].payload["Type"], "TextChat")
+        self.assertNotIn("Type", outbound_msgs[0].payload)
         self.assertIn("quick content", outbound_msgs[0].payload["Content"])
 
     def test_quick_send_non_buffer_workspace_rejected(self):
