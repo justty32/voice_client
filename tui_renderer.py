@@ -49,7 +49,6 @@ class TuiRenderer:
             self._on_status(event.data)
         elif event.event_type == "clear":
             self._console.clear()
-        # Ignore volume events
 
     # ── Renderers ──────────────────────────────────────────────────────
 

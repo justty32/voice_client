@@ -145,7 +145,6 @@ def main():
                 elif evt == "recording_stopped":
                     is_recording = False
                     ui_event_queue.put(UiEvent("status", "處理中"))
-                # Volume events are no longer needed by the UI
 
             # ── C. STT output → UI + SLM ──────────────────────────────
             while not stt_output_queue.empty():

@@ -82,15 +82,18 @@ class HttpClient:
 
     def _post_http(self, payload: dict) -> dict | None:
         last_exc = None
-        for attempt in range(self._retry):
+        # retry 代表「首次嘗試之外的重試次數」，故總嘗試數為 retry + 1。
+        # （與 utils.llm_client 的 range(max_retries + 1) 語意一致，避免 retry=0 時一次都不送出。）
+        total_attempts = self._retry + 1
+        for attempt in range(total_attempts):
             try:
                 resp = requests.post(self._url, json=payload, timeout=self._timeout)
                 resp.raise_for_status()
                 return resp.json()
             except Exception as exc:
                 last_exc = exc
-                log.warning("HTTP attempt %d/%d failed: %s", attempt + 1, self._retry, exc)
-                if attempt < self._retry - 1:
+                log.warning("HTTP attempt %d/%d failed: %s", attempt + 1, total_attempts, exc)
+                if attempt < total_attempts - 1:
                     time.sleep(1)
         self._save_failed(payload)
         return {"type": "Error", "message": str(last_exc)}
