@@ -161,5 +161,92 @@ class TestCommandRouterHotkeys(unittest.TestCase):
         self.assertIn("no_such_cmd", msgs[0].payload["text"])
 
 
+class TestCommandRouterRecorderEvent(unittest.TestCase):
+    """recorder_event topic 的處理測試。"""
+
+    def setUp(self):
+        self.router = _make_router()
+
+    # ── 11. recording_started（normal 模式）→ status「錄音中」────────────────
+    def test_recording_started_normal_mode_status(self):
+        """recording_started 在 normal 模式下應 emit status「錄音中」。"""
+        self.router.handle(Message(topic="recorder_event", payload={"event": "recording_started"}))
+        msgs = _drain(self.router)
+        status_msgs = [m for m in msgs if m.topic == "ui_event" and m.payload.get("type") == "status"]
+        self.assertEqual(len(status_msgs), 1)
+        self.assertEqual(status_msgs[0].payload["text"], "錄音中")
+        self.assertTrue(self.router._is_recording)
+
+    # ── 12. recording_started（command 模式）→ status「語音指令中」──────────
+    def test_recording_started_command_mode_status(self):
+        """先觸發 RECORD_COMMAND_TOGGLE（sets _last_mode="command"），
+        再收到 recording_started → status「語音指令中」。"""
+        self.router.handle(Message(topic="commands", payload="RECORD_COMMAND_TOGGLE"))
+        _drain(self.router)
+        self.router.handle(Message(topic="recorder_event", payload={"event": "recording_started"}))
+        msgs = _drain(self.router)
+        status_msgs = [m for m in msgs if m.topic == "ui_event" and m.payload.get("type") == "status"]
+        self.assertEqual(len(status_msgs), 1)
+        self.assertEqual(status_msgs[0].payload["text"], "語音指令中")
+        self.assertTrue(self.router._is_recording)
+
+    # ── 13. recording_stopped → status「處理中」且 _is_recording=False ───────
+    def test_recording_stopped_status_and_flag(self):
+        """recording_stopped → emit status「處理中」且 _is_recording 清為 False。"""
+        # 先啟動錄音
+        self.router.handle(Message(topic="recorder_event", payload={"event": "recording_started"}))
+        _drain(self.router)
+        self.router.handle(Message(topic="recorder_event", payload={"event": "recording_stopped"}))
+        msgs = _drain(self.router)
+        status_msgs = [m for m in msgs if m.topic == "ui_event" and m.payload.get("type") == "status"]
+        self.assertEqual(len(status_msgs), 1)
+        self.assertEqual(status_msgs[0].payload["text"], "處理中")
+        self.assertFalse(self.router._is_recording)
+
+    # ── 14. error → gate_ctl normal + [錄音錯誤] 訊息 + status 待機 + _is_recording False
+    def test_error_event_resets_state(self):
+        """error 事件應 emit gate_ctl normal、[錄音錯誤] system 訊息、status 待機，
+        並清 _is_recording。"""
+        # 先進入 command 模式
+        self.router.handle(Message(topic="commands", payload="RECORD_COMMAND_TOGGLE"))
+        _drain(self.router)
+        # 模擬已在錄音
+        self.router._is_recording = True
+        self.router.handle(Message(topic="recorder_event",
+                                   payload={"event": "error", "message": "麥克風故障"}))
+        msgs = _drain(self.router)
+        topics = {m.topic: m.payload for m in msgs}
+
+        self.assertIn("gate_ctl", topics)
+        self.assertEqual(topics["gate_ctl"], {"mode": "normal"})
+
+        ui_msgs = [m for m in msgs if m.topic == "ui_event"]
+        msg_events = [m for m in ui_msgs if m.payload.get("type") == "message"]
+        status_events = [m for m in ui_msgs if m.payload.get("type") == "status"]
+        self.assertEqual(len(msg_events), 1)
+        self.assertIn("[錄音錯誤]", msg_events[0].payload["text"])
+        self.assertIn("麥克風故障", msg_events[0].payload["text"])
+        self.assertEqual(len(status_events), 1)
+        self.assertEqual(status_events[0].payload["text"], "待機")
+        self.assertFalse(self.router._is_recording)
+        self.assertEqual(self.router._last_mode, "normal")
+
+    # ── 15. error 後 RECORD_TOGGLE → recorder_ctl START（狀態機已恢復）───────
+    def test_error_then_record_toggle_starts_recording(self):
+        """error 重設後，RECORD_TOGGLE 應能正常觸發 recorder_ctl START
+        （_is_recording 已被重設為 False，狀態機正常恢復）。"""
+        # 製造 error，模擬已在錄音
+        self.router._is_recording = True
+        self.router.handle(Message(topic="recorder_event",
+                                   payload={"event": "error", "message": "test"}))
+        _drain(self.router)
+        # 現在 _is_recording 應為 False，再按 RECORD_TOGGLE → START
+        self.router.handle(Message(topic="commands", payload="RECORD_TOGGLE"))
+        msgs = _drain(self.router)
+        recorder_msgs = [m for m in msgs if m.topic == "recorder_ctl"]
+        self.assertEqual(len(recorder_msgs), 1)
+        self.assertEqual(recorder_msgs[0].payload, "START")
+
+
 if __name__ == "__main__":
     unittest.main()

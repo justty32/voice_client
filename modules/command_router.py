@@ -31,10 +31,10 @@ _STR_TO_CMD = {
 
 
 class CommandRouter(TunnelModule):
-    """commands 通道的唯一消費者；持有 WorkspaceManager 與 SessionManager 參照。"""
+    """commands 與 recorder_event 通道的消費者；持有 WorkspaceManager 與 SessionManager 參照。"""
 
     name = "command_router"
-    consumes = ("commands",)
+    consumes = ("commands", "recorder_event")
 
     def __init__(self, workspace_manager, session_manager, export_dir="."):
         super().__init__()
@@ -42,10 +42,16 @@ class CommandRouter(TunnelModule):
         self._sm = session_manager          # Task 4 接入，現階段未使用
         self._export_dir = export_dir
         self._is_recording: bool = False
+        self._last_mode: str = "normal"
 
     # ── 公開入口 ──────────────────────────────────────────────────────────
 
     def handle(self, message: Message) -> None:
+        # 依 topic 分派：recorder_event 走獨立處理路徑
+        if message.topic == "recorder_event":
+            self._handle_recorder_event(message.payload)
+            return
+
         payload = message.payload
 
         # 第一層：舊字串訊號正規化
@@ -163,12 +169,51 @@ class CommandRouter(TunnelModule):
         """
         self._is_recording = not self._is_recording
         if self._is_recording:
+            self._last_mode = mode
             self.emit("recorder_ctl", "START")
             self.emit("gate_ctl", {"mode": mode})
         else:
             self.emit("recorder_ctl", "STOP")
             if set_mode_on_stop:
+                self._last_mode = mode
                 self.emit("gate_ctl", {"mode": mode})
+
+    # ── Recorder 事件處理（port main.py:143-158）─────────────────────────
+
+    def _handle_recorder_event(self, payload: dict) -> None:
+        """處理來自 recorder_event 通道的事件。
+
+        Port 自 main.py 段落 B（lines 143-158）：
+        - recording_started → _is_recording=True；依 _last_mode 顯示狀態
+        - recording_stopped → _is_recording=False；顯示「處理中」
+        - error → 重設狀態、emit gate_ctl normal、顯示錯誤訊息與「待機」
+        - 未知事件 → 忽略（log debug）
+        """
+        evt = payload.get("event", "") if isinstance(payload, dict) else ""
+
+        if evt == "recording_started":
+            self._is_recording = True
+            status_text = "語音指令中" if self._last_mode == "command" else "錄音中"
+            self.emit("ui_event", {"type": "status", "text": status_text})
+
+        elif evt == "recording_stopped":
+            self._is_recording = False
+            self.emit("ui_event", {"type": "status", "text": "處理中"})
+
+        elif evt == "error":
+            self._is_recording = False
+            self._last_mode = "normal"
+            self.emit("gate_ctl", {"mode": "normal"})
+            msg = payload.get("message", "未知錄音錯誤") if isinstance(payload, dict) else "未知錄音錯誤"
+            self.emit("ui_event", {
+                "type": "message",
+                "role": "system",
+                "text": f"[錄音錯誤] {msg}",
+            })
+            self.emit("ui_event", {"type": "status", "text": "待機"})
+
+        else:
+            log.debug("CommandRouter: 忽略未知 recorder_event: %s", evt)
 
     # ── 工作區指令（Task 3）──────────────────────────────────────────────
 
