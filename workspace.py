@@ -20,6 +20,18 @@ import os
 from typing import Iterable
 
 
+def resolve_filename(filename: str, base_dir: str) -> str:
+    """把使用者輸入的檔名正規化：補預設 .json 副檔名；若為純檔名則置於 base_dir 下。
+
+    供各工作區的 /export、/import 共用，確保路徑解析行為一致。
+    """
+    if "." not in filename:
+        filename += ".json"
+    if os.sep not in filename and "/" not in filename and "\\" not in filename:
+        return os.path.join(base_dir if base_dir else ".", filename)
+    return filename
+
+
 class Workspace:
     """有序的 entry 清單，每個 entry 為 list[str]。提供標準 CRUD、重排與匯出入。"""
 

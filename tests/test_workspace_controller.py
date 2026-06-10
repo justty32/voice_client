@@ -146,5 +146,126 @@ class TestSend(WCTestBase):
         self.assertIn("僅適用於 buffer", res.messages[0][1])
 
 
+class TestDelMoveTotop(WCTestBase):
+    def test_del_buffer_delegates(self):
+        res = self.wc.handle_del(["2"])
+        self.assertEqual(res.acc_cmds, [{"cmd": "delete", "args": ["2"]}])
+
+    def test_del_requires_arg(self):
+        res = self.wc.handle_del([])
+        self.assertIn("用法: /del", res.messages[0][1])
+
+    def test_del_stt(self):
+        self.wc.set_current("stt")
+        self.wc.stt.extend(["a", "b", "c"])
+        res = self.wc.handle_del(["2"])
+        self.assertEqual(self.wc.stt.lines(), ["a", "c"])
+        self.assertIn("已刪除 stt 第 2 筆", res.messages[0][1])
+
+    def test_del_stt_out_of_range(self):
+        self.wc.set_current("stt")
+        self.wc.stt.append("a")
+        res = self.wc.handle_del(["9"])
+        self.assertIn("沒有第 9 筆", res.messages[0][1])
+
+    def test_del_chat(self):
+        self.wc.set_current("chat")
+        self.sm.add_message("user", "a")
+        self.sm.add_message("assistant", "b")
+        res = self.wc.handle_del(["1"])
+        self.assertEqual(self.sm.message_count(), 1)
+        self.assertIn("已刪除 chat 第 1 筆", res.messages[0][1])
+
+    def test_move_buffer_delegates(self):
+        res = self.wc.handle_move(["1", "3"])
+        self.assertEqual(res.acc_cmds, [{"cmd": "move", "args": ["1", "3"]}])
+
+    def test_move_needs_two(self):
+        res = self.wc.handle_move(["1"])
+        self.assertIn("用法: /move", res.messages[0][1])
+
+    def test_move_stt(self):
+        self.wc.set_current("stt")
+        self.wc.stt.extend(["a", "b", "c"])
+        res = self.wc.handle_move(["1", "3"])
+        self.assertEqual(self.wc.stt.lines(), ["b", "c", "a"])
+        self.assertIn("移到第 3 位", res.messages[0][1])
+
+    def test_totop_buffer_delegates(self):
+        res = self.wc.handle_totop(["2"])
+        self.assertEqual(res.acc_cmds, [{"cmd": "to_top", "args": ["2"]}])
+
+    def test_totop_stt_default_last(self):
+        self.wc.set_current("stt")
+        self.wc.stt.extend(["a", "b", "c"])
+        res = self.wc.handle_totop([])
+        self.assertEqual(self.wc.stt.lines(), ["c", "a", "b"])
+        self.assertIn("最後一筆", res.messages[0][1])
+
+    def test_totop_stt_index(self):
+        self.wc.set_current("stt")
+        self.wc.stt.extend(["a", "b", "c"])
+        res = self.wc.handle_totop(["2"])
+        self.assertEqual(self.wc.stt.lines(), ["b", "a", "c"])
+
+
+class TestConcat(WCTestBase):
+    def test_concat_buffer_delegates(self):
+        res = self.wc.handle_concat()
+        self.assertEqual(res.acc_cmds, [{"cmd": "concat"}])
+
+    def test_concat_stt(self):
+        self.wc.set_current("stt")
+        self.wc.stt.extend(["a", "b", "c"])
+        res = self.wc.handle_concat()
+        self.assertEqual(self.wc.stt.lines(), ["a b c"])
+        self.assertIn("壓縮為 1 筆", res.messages[0][1])
+
+    def test_concat_chat_unsupported(self):
+        self.wc.set_current("chat")
+        res = self.wc.handle_concat()
+        self.assertIn("不支援", res.messages[0][1])
+
+
+class TestExportImport(WCTestBase):
+    def setUp(self):
+        super().setUp()
+        self.wc = WorkspaceController(self.sm, export_dir=self._tmp.name)
+
+    def test_export_buffer_delegates(self):
+        res = self.wc.handle_export(["f"])
+        self.assertEqual(res.acc_cmds, [{"cmd": "export", "args": ["f"]}])
+
+    def test_export_import_stt_roundtrip(self):
+        self.wc.set_current("stt")
+        self.wc.stt.extend(["x", "y"])
+        res = self.wc.handle_export(["sttdata"])
+        self.assertIn("已匯出至", res.messages[0][1])
+        self.wc.stt.clear()
+        res2 = self.wc.handle_import(["sttdata"])
+        self.assertIn("匯入 2 筆到 stt", res2.messages[0][1])
+        self.assertEqual(self.wc.stt.lines(), ["x", "y"])
+
+    def test_export_stt_requires_name(self):
+        self.wc.set_current("stt")
+        res = self.wc.handle_export([])
+        self.assertIn("請指定匯出檔名", res.messages[0][1])
+
+    def test_import_stt_missing_file(self):
+        self.wc.set_current("stt")
+        res = self.wc.handle_import(["nope"])
+        self.assertIn("找不到檔案", res.messages[0][1])
+
+    def test_export_chat_hint(self):
+        self.wc.set_current("chat")
+        res = self.wc.handle_export(["x"])
+        self.assertIn("/save", res.messages[0][1])
+
+    def test_import_chat_hint(self):
+        self.wc.set_current("chat")
+        res = self.wc.handle_import(["x"])
+        self.assertIn("/load", res.messages[0][1])
+
+
 if __name__ == "__main__":
     unittest.main()

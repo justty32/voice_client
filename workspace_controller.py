@@ -16,10 +16,11 @@ workspace_controller.py — 前端無關的工作區指令派發核心。
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 
 from utils import clipboard
-from workspace import Workspace
+from workspace import Workspace, resolve_filename
 
 
 @dataclass
@@ -33,14 +34,22 @@ class WSResult:
 class WorkspaceController:
     NAMES = ("stt", "buffer", "chat")
 
-    def __init__(self, session_manager):
+    def __init__(self, session_manager, export_dir: str = "."):
         self.stt = Workspace("stt")
         self._sm = session_manager
+        self._export_dir = export_dir or "."
         self.current = "buffer"
 
     # ── 狀態 ────────────────────────────────────────────────────────────
     def is_valid(self, name: str) -> bool:
         return name in self.NAMES
+
+    @staticmethod
+    def _to_int(s) -> int | None:
+        try:
+            return int(s)
+        except (ValueError, TypeError):
+            return None
 
     def set_current(self, name: str) -> bool:
         if self.is_valid(name):
@@ -135,3 +144,101 @@ class WorkspaceController:
             return WSResult(messages=[("system", f"[系統] 已從剪貼簿貼上 {len(lines)} 筆到 stt 工作區。")])
         # chat
         return WSResult(messages=[("system", "[系統] chat 工作區不支援貼上（請切換到 buffer 或 stt）。")])
+
+    # ── /del ────────────────────────────────────────────────────────────
+    def handle_del(self, args: list[str]) -> WSResult:
+        if not args:
+            return WSResult(messages=[("system", "用法: /del <編號>")])
+        if self.current == "buffer":
+            return WSResult(acc_cmds=[{"cmd": "delete", "args": args}])
+        i = self._to_int(args[0])
+        if i is None:
+            return WSResult(messages=[("system", "用法: /del <編號>（需為數字）")])
+        if self.current == "stt":
+            ok = self.stt.delete(i - 1)
+            return WSResult(messages=[("system", f"[系統] 已刪除 stt 第 {i} 筆。" if ok else f"[錯誤] stt 沒有第 {i} 筆。")])
+        ok = self._sm.delete_message(i - 1)
+        return WSResult(messages=[("system", f"[系統] 已刪除 chat 第 {i} 筆。" if ok else f"[錯誤] chat 沒有第 {i} 筆。")])
+
+    # ── /move ───────────────────────────────────────────────────────────
+    def handle_move(self, args: list[str]) -> WSResult:
+        if len(args) < 2:
+            return WSResult(messages=[("system", "用法: /move <來源編號> <目標編號>")])
+        if self.current == "buffer":
+            return WSResult(acc_cmds=[{"cmd": "move", "args": args}])
+        src = self._to_int(args[0])
+        dst = self._to_int(args[1])
+        if src is None or dst is None:
+            return WSResult(messages=[("system", "用法: /move <來源編號> <目標編號>（需為數字）")])
+        ws_obj = self.stt if self.current == "stt" else None
+        if ws_obj is not None:
+            ok = ws_obj.move(src - 1, dst - 1)
+        else:
+            ok = self._sm.move_message(src - 1, dst - 1)
+        label = self.current
+        return WSResult(messages=[("system", f"[系統] 已將 {label} 第 {src} 筆移到第 {dst} 位。" if ok else "[錯誤] 移動失敗（編號超出範圍）。")])
+
+    # ── /to_top ─────────────────────────────────────────────────────────
+    def handle_totop(self, args: list[str]) -> WSResult:
+        if self.current == "buffer":
+            return WSResult(acc_cmds=[{"cmd": "to_top", "args": args}])
+        idx = self._to_int(args[0]) if args else None
+        if args and idx is None:
+            return WSResult(messages=[("system", "用法: /to_top [編號]（需為數字）")])
+        target0 = (idx - 1) if idx else -1
+        if self.current == "stt":
+            ok = self.stt.move_to_top(target0)
+        else:
+            ok = self._sm.move_message_to_top(target0)
+        if not ok:
+            if idx:
+                return WSResult(messages=[("system", f"[錯誤] {self.current} 沒有第 {idx} 筆，或筆數不足。")])
+            return WSResult()
+        where = f"第 {idx} 筆" if idx else "最後一筆"
+        return WSResult(messages=[("system", f"[系統] 已將 {self.current} {where}移至最前方。")])
+
+    # ── /concat ─────────────────────────────────────────────────────────
+    def handle_concat(self) -> WSResult:
+        if self.current == "buffer":
+            return WSResult(acc_cmds=[{"cmd": "concat"}])
+        if self.current == "stt":
+            if self.stt.is_empty():
+                return WSResult()
+            count = self.stt.count()
+            self.stt.concat_all(" ")
+            return WSResult(messages=[("system", f"[系統] 已連接 stt 工作區（將 {count} 筆壓縮為 1 筆）。")])
+        return WSResult(messages=[("system", "[系統] chat 工作區不支援 /concat。")])
+
+    # ── /export ─────────────────────────────────────────────────────────
+    def handle_export(self, args: list[str]) -> WSResult:
+        if self.current == "buffer":
+            return WSResult(acc_cmds=[{"cmd": "export", "args": args}])
+        if self.current == "stt":
+            if not args:
+                return WSResult(messages=[("system", "[錯誤] 請指定匯出檔名。例如: /export my_data")])
+            path = resolve_filename(" ".join(args), self._export_dir)
+            try:
+                self.stt.export(path)
+                return WSResult(messages=[("system", f"[系統] stt 工作區已匯出至: {path}")])
+            except Exception as e:
+                return WSResult(messages=[("system", f"[錯誤] 匯出失敗: {e}")])
+        return WSResult(messages=[("system", "[系統] chat 工作區請改用 /save 儲存對話。")])
+
+    # ── /import ─────────────────────────────────────────────────────────
+    def handle_import(self, args: list[str]) -> WSResult:
+        if self.current == "buffer":
+            return WSResult(acc_cmds=[{"cmd": "import", "args": args}])
+        if self.current == "stt":
+            if not args:
+                return WSResult(messages=[("system", "[錯誤] 請指定匯入檔名。")])
+            path = resolve_filename(" ".join(args), self._export_dir)
+            if not os.path.exists(path):
+                return WSResult(messages=[("system", f"[錯誤] 找不到檔案: {path}")])
+            try:
+                added = self.stt.import_file(path, append=True)
+                return WSResult(messages=[("system", f"[系統] 已從 {path} 匯入 {added} 筆到 stt 工作區。")])
+            except ValueError as e:
+                return WSResult(messages=[("system", f"[錯誤] {e}")])
+            except Exception as e:
+                return WSResult(messages=[("system", f"[錯誤] 匯入失敗: {e}")])
+        return WSResult(messages=[("system", "[系統] chat 工作區請改用 /load 載入對話。")])

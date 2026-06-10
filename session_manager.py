@@ -3,6 +3,8 @@ import json
 import os
 from datetime import datetime, timezone
 
+from workspace import Workspace
+
 
 class SessionManager:
     """會話管理器（同步呼叫）。管理對話串的建立、切換、列表。"""
@@ -146,6 +148,30 @@ class SessionManager:
         session["history"] = []
         self._save_sessions()
         return n
+
+    def _apply_history_op(self, op) -> bool:
+        """以 Workspace 包裝當前對話歷史執行 op(ws)->bool，成功則寫回並存檔。"""
+        session = self.get_current_session()
+        if session is None:
+            return False
+        ws = Workspace.from_list("chat", session.get("history", []))
+        if op(ws):
+            session["history"] = ws.to_list()
+            self._save_sessions()
+            return True
+        return False
+
+    def delete_message(self, idx: int) -> bool:
+        """刪除當前對話第 idx 則訊息（0-based）。"""
+        return self._apply_history_op(lambda ws: ws.delete(idx))
+
+    def move_message(self, src: int, dst: int) -> bool:
+        """把當前對話第 src 則訊息移到第 dst 位（0-based）。"""
+        return self._apply_history_op(lambda ws: ws.move(src, dst))
+
+    def move_message_to_top(self, idx: int = -1) -> bool:
+        """把當前對話指定訊息移到最前；idx 預設 -1 為最後一則。"""
+        return self._apply_history_op(lambda ws: ws.move_to_top(idx))
 
     def delete_session(self, title: str) -> tuple[bool, str]:
         """刪除指定 Session，刪除前先備份至 output/deleted。"""

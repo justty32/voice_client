@@ -73,7 +73,8 @@ def main():
             session_manager.new_session("default")
 
     # 工作區控制器：管理 stt 工作區與「當前工作區」指標，派發統一 CRUD 指令
-    wsc = WorkspaceController(session_manager)
+    _export_dir = os.path.dirname(config.get("WORKSPACE", "export_file", fallback="output/export.json")) or "."
+    wsc = WorkspaceController(session_manager, export_dir=_export_dir)
 
     # ── Instantiate modules ────────────────────────────────────────────
     keyboard_listener = KeyboardListener(config, key_signal_queue)
@@ -307,15 +308,19 @@ def _route_cli_cmd(cmd_item: dict, session_manager: SessionManager, ui_event_que
     elif cmd == "/clear":
         _apply_ws_result(wsc.handle_clear(args), ui_event_queue, acc_cmd_queue)
     elif cmd == "/concat":
-        acc_cmd_queue.put({"cmd": "concat"})
+        _apply_ws_result(wsc.handle_concat(), ui_event_queue, acc_cmd_queue)
     elif cmd == "/to_top":
-        acc_cmd_queue.put({"cmd": "to_top"})
+        _apply_ws_result(wsc.handle_totop(args), ui_event_queue, acc_cmd_queue)
+    elif cmd == "/del":
+        _apply_ws_result(wsc.handle_del(args), ui_event_queue, acc_cmd_queue)
+    elif cmd == "/move":
+        _apply_ws_result(wsc.handle_move(args), ui_event_queue, acc_cmd_queue)
     elif cmd == "/send":
         _apply_ws_result(wsc.handle_send(), ui_event_queue, acc_cmd_queue)
     elif cmd == "/export":
-        acc_cmd_queue.put({"cmd": "export", "args": args})
+        _apply_ws_result(wsc.handle_export(args), ui_event_queue, acc_cmd_queue)
     elif cmd == "/import":
-        acc_cmd_queue.put({"cmd": "import", "args": args})
+        _apply_ws_result(wsc.handle_import(args), ui_event_queue, acc_cmd_queue)
     elif cmd == "/stop":
         tts_cmd_queue.put("STOP_SPEECH")
         ui_event_queue.put(UiEvent("status", "待機"))
@@ -326,7 +331,7 @@ def _route_cli_cmd(cmd_item: dict, session_manager: SessionManager, ui_event_que
     elif cmd == "/paste":
         _apply_ws_result(wsc.handle_paste(), ui_event_queue, acc_cmd_queue)
     elif cmd == "/help":
-        help_text = "/new [title]  /switch [title]  /list  /delete [title]  /save [file]  /load [file]  /rename [old] [new]  /history  /ws [name]  /show  /clear [ui|stt|buffer|chat]  /copy  /paste  /concat  /to_top  /send  /export  /import  /stop  /help  /exit"
+        help_text = "/new [title]  /switch [title]  /list  /delete [title]  /save [file]  /load [file]  /rename [old] [new]  /history  /ws [name]  /show  /clear [ui|stt|buffer|chat]  /copy  /paste  /del <i>  /move <i> <j>  /to_top [i]  /concat  /send  /export  /import  /stop  /help  /exit"
         ui_event_queue.put(UiEvent("message", {"role": "system", "text": help_text}))
     elif cmd == "unknown":
         ui_event_queue.put(UiEvent("message", {"role": "system", "text": f"未知指令: {args[0] if args else ''}"}))

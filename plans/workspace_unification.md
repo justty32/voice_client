@@ -131,9 +131,11 @@
 | ① ✅ | `workspace.py` + 單元測試 | 無（純新增） | `python3 -m unittest tests.test_workspace` |
 | ② | `TextAccumulator` 改用 `Workspace` 承載 buffer，對外行為不變 | 低 | 新增 `tests/test_text_accumulator.py`（flush/concat/to_top/export/import 行為對照舊版） |
 | ③ | `SessionManager` history → `List[List[str]]`，加舊格式遷移；更新 `http_client._call_local`、`get_history` | 中（動到核心 chat/LLM） | 新增 `tests/test_session_manager.py`（含舊 `.sessions.json` 遷移、`add_message`/`get_history` 對照） |
-| ④ | 新增 `stt` 工作區 + 「當前工作區」+ 統一 `/ws`/`/del`/`/move`/`/totop` 指令層，串進 `main.py`、`mobile_server.py`、`app.js`、語音指令 | 中 | 指令路由單元測試 + 手動煙霧測試 |
+| ④a ✅ | `stt` 工作區 + 「當前工作區」+ `/ws` + ws 感知 `/show`/`/clear`/`/send`（TUI）；含剪貼簿 `/copy`/`/paste` | 中 | `tests/test_workspace_controller.py`、`test_clipboard_commands.py` |
+| ④b ✅ | `/del`/`/move`/`/to_top`/`/concat`/`/export`/`/import` 改為當前工作區感知（buffer/stt/chat）（TUI） | 中 | 控制器 + accumulator + session 訊息編輯測試 |
+| ④c | 把 ④a/④b + 剪貼簿全部對齊到手機端（`mobile_server.py` + `app.js`，剪貼簿走 `navigator.clipboard`），語音指令一致 | 中 | 手動煙霧測試 |
 
-每階段獨立 commit、可獨立回退。
+每階段獨立 commit、可獨立回退。目前全測試 116 綠（`python3 -m unittest discover -s tests`）。
 
 ---
 

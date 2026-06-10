@@ -108,8 +108,51 @@ class TestClearConcatToTop(TextAccumulatorTestBase):
 
     def test_to_top_fewer_than_two_no_output(self):
         self.seed("a")
-        self.acc._to_top()
+        self.acc._handle_cmd({"cmd": "to_top"})
         self.assertEqual(self.drain(), [])
+
+    def test_to_top_with_index(self):
+        self.seed("a", "b", "c")
+        self.acc._handle_cmd({"cmd": "to_top", "args": ["2"]})
+        self.assertIn("第 2 筆", self.last_text())
+        self.assertEqual(self.acc._ws.lines(), ["b", "a", "c"])
+
+    def test_to_top_bad_index(self):
+        self.seed("a", "b")
+        self.acc._handle_cmd({"cmd": "to_top", "args": ["x"]})
+        self.assertIn("需為數字", self.last_text())
+
+    def test_delete_by_index(self):
+        self.seed("a", "b", "c")
+        self.acc._handle_cmd({"cmd": "delete", "args": ["2"]})
+        self.assertIn("已刪除暫存區第 2 筆", self.last_text())
+        self.assertEqual(self.acc._ws.lines(), ["a", "c"])
+
+    def test_delete_out_of_range(self):
+        self.seed("a")
+        self.acc._handle_cmd({"cmd": "delete", "args": ["5"]})
+        self.assertIn("沒有第 5 筆", self.last_text())
+
+    def test_delete_requires_index(self):
+        self.seed("a")
+        self.acc._handle_cmd({"cmd": "delete", "args": []})
+        self.assertIn("用法: /del", self.last_text())
+
+    def test_move_by_index(self):
+        self.seed("a", "b", "c")
+        self.acc._handle_cmd({"cmd": "move", "args": ["1", "3"]})
+        self.assertIn("第 1 筆移到第 3 位", self.last_text())
+        self.assertEqual(self.acc._ws.lines(), ["b", "c", "a"])
+
+    def test_move_out_of_range(self):
+        self.seed("a", "b")
+        self.acc._handle_cmd({"cmd": "move", "args": ["1", "9"]})
+        self.assertIn("超出範圍", self.last_text())
+
+    def test_move_needs_two_args(self):
+        self.seed("a", "b")
+        self.acc._handle_cmd({"cmd": "move", "args": ["1"]})
+        self.assertIn("用法: /move", self.last_text())
 
 
 class TestExportImport(TextAccumulatorTestBase):

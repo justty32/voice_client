@@ -168,5 +168,49 @@ class TestSaveLoadFile(SessionManagerTestBase):
         self.assertEqual(sm2.get_current_session()["history"][0][:2], ["user", "data"])
 
 
+class TestHistoryEdit(SessionManagerTestBase):
+    def _seed(self):
+        sm = SessionManager(self.cfg)
+        sm.new_session("s")
+        sm.add_message("user", "m1")
+        sm.add_message("assistant", "m2")
+        sm.add_message("user", "m3")
+        return sm
+
+    def test_delete_message(self):
+        sm = self._seed()
+        self.assertTrue(sm.delete_message(1))  # 刪除 m2
+        hist = sm.get_current_session()["history"]
+        self.assertEqual([h[1] for h in hist], ["m1", "m3"])
+        self.assertFalse(sm.delete_message(9))
+
+    def test_move_message(self):
+        sm = self._seed()
+        self.assertTrue(sm.move_message(0, 2))  # m1 移到最後
+        hist = sm.get_current_session()["history"]
+        self.assertEqual([h[1] for h in hist], ["m2", "m3", "m1"])
+        self.assertFalse(sm.move_message(0, 9))
+
+    def test_move_message_to_top_default_last(self):
+        sm = self._seed()
+        self.assertTrue(sm.move_message_to_top())  # m3 移到最前
+        hist = sm.get_current_session()["history"]
+        self.assertEqual([h[1] for h in hist], ["m3", "m1", "m2"])
+
+    def test_edit_persists(self):
+        sm = self._seed()
+        sm.delete_message(0)
+        sm2 = SessionManager(self.cfg)
+        sm2.switch_session("s")
+        hist = sm2.get_current_session()["history"]
+        self.assertEqual([h[1] for h in hist], ["m2", "m3"])
+
+    def test_edit_preserves_three_columns(self):
+        sm = self._seed()
+        sm.move_message(0, 1)
+        for h in sm.get_current_session()["history"]:
+            self.assertEqual(len(h), 3)
+
+
 if __name__ == "__main__":
     unittest.main()

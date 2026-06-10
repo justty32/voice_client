@@ -10,6 +10,13 @@ from workspace import Workspace
 
 log = logging.getLogger(__name__)
 
+
+def _to_int(s) -> int | None:
+    try:
+        return int(s)
+    except (ValueError, TypeError):
+        return None
+
 class TextAccumulator:
     """文字累積與緩存中心（buffer 工作區）。
 
@@ -94,7 +101,11 @@ class TextAccumulator:
         elif op == "concat":
             self._concat()
         elif op == "to_top":
-            self._to_top()
+            self._to_top(args)
+        elif op == "delete":
+            self._delete(args)
+        elif op == "move":
+            self._move(args)
         elif op == "copy":
             self._copy()
         elif op == "paste":
@@ -177,11 +188,44 @@ class TextAccumulator:
         self._output_queue.put({"type": "buffer_peek", "text": f"[系統] 已連接暫存區文字（將 {count} 筆壓縮為 1 筆）。"})
         log.info("Concatenated buffer.")
 
-    def _to_top(self):
-        if not self._ws.move_to_top():
+    def _to_top(self, args=None):
+        idx = None
+        if args:
+            idx = _to_int(args[0])
+            if idx is None:
+                self._output_queue.put({"type": "buffer_peek", "text": "用法: /to_top [編號]（需為數字）"})
+                return
+        if not self._ws.move_to_top((idx - 1) if idx else -1):
+            if idx:
+                self._output_queue.put({"type": "buffer_peek", "text": f"[錯誤] 暫存區沒有第 {idx} 筆，或筆數不足。"})
             return
-        self._output_queue.put({"type": "buffer_peek", "text": "[系統] 已將最後一筆文字移至最前方。"})
-        log.info("Moved last item to top.")
+        where = f"第 {idx} 筆" if idx else "最後一筆文字"
+        self._output_queue.put({"type": "buffer_peek", "text": f"[系統] 已將{where}移至最前方。"})
+        log.info("Moved item to top.")
+
+    def _delete(self, args):
+        idx = _to_int(args[0]) if args else None
+        if idx is None:
+            self._output_queue.put({"type": "buffer_peek", "text": "用法: /del <編號>（需為數字）"})
+            return
+        if self._ws.delete(idx - 1):
+            self._output_queue.put({"type": "buffer_peek", "text": f"[系統] 已刪除暫存區第 {idx} 筆。"})
+        else:
+            self._output_queue.put({"type": "buffer_peek", "text": f"[錯誤] 暫存區沒有第 {idx} 筆。"})
+
+    def _move(self, args):
+        if len(args) < 2:
+            self._output_queue.put({"type": "buffer_peek", "text": "用法: /move <來源編號> <目標編號>"})
+            return
+        src = _to_int(args[0])
+        dst = _to_int(args[1])
+        if src is None or dst is None:
+            self._output_queue.put({"type": "buffer_peek", "text": "用法: /move <來源編號> <目標編號>（需為數字）"})
+            return
+        if self._ws.move(src - 1, dst - 1):
+            self._output_queue.put({"type": "buffer_peek", "text": f"[系統] 已將暫存區第 {src} 筆移到第 {dst} 位。"})
+        else:
+            self._output_queue.put({"type": "buffer_peek", "text": "[錯誤] 移動失敗（編號超出範圍）。"})
 
     def _copy(self):
         if self._ws.is_empty():
