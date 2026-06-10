@@ -29,6 +29,7 @@ from session_manager import SessionManager
 from summary_generator import SummaryGenerator
 from text_accumulator import TextAccumulator
 from voice_to_text import VoiceToText
+from workspace_controller import WorkspaceController
 
 log = logging.getLogger("mobile_server")
 
@@ -111,6 +112,9 @@ _text_accumulator = TextAccumulator(_cfg, _acc_input_queue, _acc_cmd_queue, _acc
 _summary_gen      = SummaryGenerator(_cfg, _summary_queue, _summary_output_queue)
 _http_client      = HttpClient(_cfg, _send_queue, _recv_queue, _session_manager)
 
+_export_dir = os.path.dirname(_cfg.get("WORKSPACE", "export_file", fallback="output/export.json")) or "."
+_wsc = WorkspaceController(_session_manager, export_dir=_export_dir)
+
 _summary_threshold = _cfg.getint("SLM", "summary_threshold", fallback=20)
 _slm_enabled = _cfg.getboolean("SLM", "enabled", fallback=True)
 
@@ -131,6 +135,16 @@ def _push_tts(text: str, priority: str = "medium"):
 
 def _push_system(text: str):
     _push_msg("system", text)
+
+def _apply_ws_result(res):
+    """把 WorkspaceController 的派發結果套用到 mobile 的推送通道。"""
+    for role, text in res.messages:
+        _push_msg(role, text)
+    for c in res.acc_cmds:
+        _acc_cmd_queue.put(c)
+    if res.clear_ui:
+        _push({"type": "clear"})
+        _push_status("待機")
 
 
 # ── FastAPI lifespan ───────────────────────────────────────────────────────
@@ -292,31 +306,27 @@ def _route_cmd(cmd: str, args: list):
     elif cmd == "/history":
         _push_system(_session_manager.get_history())
 
-    elif cmd == "/clear":
-        arg = args[0].lower() if args else None
-        if arg == "buffer":
-            _acc_cmd_queue.put({"cmd": "clear"})
-        else:
-            _push({"type": "clear"})
-            _push_status("待機")
-
-    elif cmd == "/concat":
-        _acc_cmd_queue.put({"cmd": "concat"})
-
-    elif cmd == "/to_top":
-        _acc_cmd_queue.put({"cmd": "to_top"})
-
-    elif cmd == "/send":
-        _acc_cmd_queue.put({"cmd": "flush", "msg_type": "TextChat"})
-
+    # ── 工作區統一指令（當前工作區感知）─────────────────────────────
+    elif cmd == "/ws":
+        _apply_ws_result(_wsc.handle_ws(args, _text_accumulator.count()))
     elif cmd == "/show":
-        _acc_cmd_queue.put({"cmd": "peek"})
-
+        _apply_ws_result(_wsc.handle_show())
+    elif cmd == "/clear":
+        _apply_ws_result(_wsc.handle_clear(args))
+    elif cmd == "/concat":
+        _apply_ws_result(_wsc.handle_concat())
+    elif cmd == "/to_top":
+        _apply_ws_result(_wsc.handle_totop(args))
+    elif cmd == "/del":
+        _apply_ws_result(_wsc.handle_del(args))
+    elif cmd == "/move":
+        _apply_ws_result(_wsc.handle_move(args))
+    elif cmd == "/send":
+        _apply_ws_result(_wsc.handle_send())
     elif cmd == "/export":
-        _acc_cmd_queue.put({"cmd": "export", "args": args})
-
+        _apply_ws_result(_wsc.handle_export(args))
     elif cmd == "/import":
-        _acc_cmd_queue.put({"cmd": "import", "args": args})
+        _apply_ws_result(_wsc.handle_import(args))
 
     elif cmd == "/stop":
         # 前端 TTS 由瀏覽器 SpeechSynthesis 播放，通知前端中斷。
@@ -325,7 +335,7 @@ def _route_cmd(cmd: str, args: list):
     elif cmd == "/help":
         _push_system(
             "/new /switch /list /delete /save /load /rename /history "
-            "/concat /to_top /send /export /import /show /stop /clear /help"
+            "/ws /show /clear /del /move /to_top /concat /send /export /import /stop /help"
         )
 
     else:
@@ -373,6 +383,7 @@ async def _output_pusher(ws: WebSocket):
                 text = _stt_output_queue.get_nowait()
                 if text.strip():
                     _push_msg("voice", text)
+                    _wsc.stt.append(text)  # 擷取原始辨識文字至 stt 工作區
                     _acc_input_queue.put({"type": "text", "text": text, "msg_type": "VoiceChat"})
 
             # 2. Accumulator output → HTTP send
