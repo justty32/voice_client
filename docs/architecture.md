@@ -1,7 +1,7 @@
 # Voice Client 架構文檔
 
 更新日期：2026-06-10
-適用版本：`refactor/data-tunnel` 分支（資料隧道重構階段④完成）
+適用版本：`refactor/data-tunnel` 分支（資料隧道重構**全部完成**，`app.py` 為接線入口）
 
 ## 1. 總覽
 
@@ -9,9 +9,10 @@ Voice Client（V-TUI Assistant）是一個語音優先的終端 AI 客戶端：
 語音經本地 STT（faster-whisper）轉為文字、累積在工作區、由使用者掌控何時送往
 LLM，回覆再經摘要（本地 SLM）與 TTS 朗讀。
 
-系統正在從「中央路由器」架構遷移至「**資料隧道（Data Tunnel）**」架構：
+系統已完成從「中央路由器」到「**資料隧道（Data Tunnel）**」架構的重構：
 所有模組都是掛在具名通道（topic）上的**生產者／消費者**，資料交換由單執行緒
-交換核心統一執行。設計定案見 `plans/data_tunnel_design.md`。
+交換核心統一執行。`app.py` 是唯一的接線入口（`main.py` 為薄殼，啟動方式不變）。
+設計定案見 `plans/data_tunnel_design.md`。
 
 ```
             生產者執行緒                交換核心（單執行緒）            消費者執行緒
@@ -23,7 +24,7 @@ LLM，回覆再經摘要（本地 SLM）與 TTS 朗讀。
         └──────────────┘           └──────────────────────┘        └──────────────┘
 ```
 
-## 2. 資料隧道框架（`core/`，階段①〜④已完成）
+## 2. 資料隧道框架（`core/`）
 
 框架本體不含任何業務邏輯，五個檔案各司其職：
 
@@ -62,8 +63,10 @@ LLM，回覆再經摘要（本地 SLM）與 TTS 朗讀。
 | `stt_text` | STT | SttGate（依模式分流） |
 | `raw_text` | SttGate（normal 模式）、終端文字輸入 | WorkspaceManager（塞進**當前**工作區） |
 | `commands` | 終端斜線指令、SttGate（command 模式）、熱鍵 | CommandRouter |
+| `cli_text` | 終端文字輸入 | CliTextBridge（EXIT 攔截＋顯示＋轉 raw_text） |
+| `recorder_event` | Recorder 事件 | CommandRouter（狀態列／錯誤復原） |
 | `gate_ctl` | CommandRouter | SttGate（模式切換） |
-| `app_ctl` | CommandRouter（/exit） | app.py（階段⑤接上） |
+| `app_ctl` | CommandRouter（/exit）、CliTextBridge（EOF） | app.py 主執行緒 |
 | `recorder_ctl` | CommandRouter | Recorder |
 | `tts_ctl` | CommandRouter | AudioPriorityPlayer |
 | `outbound` | CommandRouter（/send） | HttpClient |
@@ -90,33 +93,39 @@ LLM，回覆再經摘要（本地 SLM）與 TTS 朗讀。
    ChatFlow（寫入歷史；依摘要門檻直接 `tts` 或發 `summary_req`）。
 4. **呈現**：`ui_event`→ TuiRenderer；`tts`→ AudioPriorityPlayer。
 
-## 5. 現行（遷移前）模組對照
+## 5. 新舊模組對照
 
 舊架構中 `main.py`（487 行）是中央路由器，輪詢所有佇列並混雜業務邏輯。
-遷移完成後 `main.py`／`app.py` 縮減為純接線。現有模組對照：
+現在 `main.py` 是 14 行薄殼，`app.py`（純接線）負責建佇列、掛轉接器、啟動模組。
+模組對照：
 
 | 現有檔案 | 去向 |
 |---|---|
-| `main.py` 路由邏輯 | 拆入 CommandRouter／ChatFlow／WorkspaceManager |
+| `main.py` 路由邏輯 | 已拆入 CommandRouter／ChatFlow／WorkspaceManager／SttGate／CliTextBridge |
 | `record.py`、`voice_to_text.py` | 經 `core/adapter.py` 轉接器掛上框架（階段②，模組本體零修改） |
-| `text_accumulator.py`、`workspace_controller.py`、`workspace.py` | 合併為 WorkspaceManager（階段②③） |
-| `terminal_input.py`、`keyboard_listener.py` | 經轉接器作為 `commands` 生產者（階段③完成邏輯、階段⑤接線；模組零修改） |
+| `text_accumulator.py`、`workspace_controller.py` | 已被 WorkspaceManager＋CommandRouter 取代；僅 `mobile_server.py` 仍使用（待清理） |
+| `workspace.py` | 沿用（WorkspaceManager 的底層資料結構） |
+| `terminal_input.py`、`keyboard_listener.py` | 經轉接器作為 `commands`／`cli_text` 生產者（模組零修改） |
 | `main.py` 的 `is_command_mode` | SttGate（`modules/stt_gate.py`，階段③） |
 | `http_client.py`、`summary_generator.py` | 經轉接器掛上框架（階段④完成邏輯、階段⑤接線；模組零修改） |
 | `session_manager.py` | 由 CommandRouter／ChatFlow 同步呼叫（保持同步物件，零修改） |
 | `main.py` 的 `_route_response`、摘要呈現、last_full_response | ChatFlow（`modules/chat_flow.py`，階段④） |
-| `tui_renderer.py`、`text_to_voice.py` | 呈現層（階段⑤） |
+| `tui_renderer.py`、`text_to_voice.py` | 經轉接器掛上框架（ui_event 經 dict→UiEvent 轉換；模組零修改） |
+| `main.py` 段落 B/C/D（錄音事件、CLI 文字、EXIT） | CommandRouter（recorder_event）、CliTextBridge（cli_text） |
 | `mobile_server.py` | 本次重構非目標，日後另案對齊 |
 
-## 6. 遷移路線圖
+## 6. 遷移路線圖（全部完成）
 
-- ✅ **階段①**：`core/` 框架本體＋29 個測試（不接業務模組）
+- ✅ **階段①**：`core/` 框架本體＋單元測試（不接業務模組）
 - ✅ **階段②**：語音資料流——轉接器橋接 Recorder/STT、WorkspaceManager 上線
 - ✅ **階段③**：指令流——SttGate 分流、CommandRouter 上線（全指令集 port 完成）
 - ✅ **階段④**：聊天流——ChatFlow 上線、chat 工作區指令接入、重播鏈完成
-- ⬜ **階段⑤**：呈現層收尾——TuiRenderer、TTS；移除舊 main.py 路由
+- ✅ **階段⑤**：呈現層收尾——CliTextBridge、recorder_event、`app.py` 接線入口、
+  main.py 縮為薄殼（舊路由刪除）
 
-每階段獨立可運作、有測試；計畫文件依序為 `plans/data_tunnel_stage{N}_plan.md`。
+計畫文件依序為 `plans/data_tunnel_stage{N}_plan.md`。
+後續清理另案：mobile_server.py 對齊新框架時一併移除 text_accumulator.py、
+workspace_controller.py。
 
 ## 7. 執行緒模型與錯誤處理
 
@@ -134,7 +143,8 @@ LLM，回覆再經摘要（本地 SLM）與 TTS 朗讀。
 - 業務模組測試：`tests/test_workspace_manager.py`、`test_stt_gate.py`、
   `test_command_router_hotkeys.py`、`test_command_router_workspace.py`、
   `test_command_router_session.py`、`test_command_router_voice.py`、
-  `test_chat_flow.py`
+  `test_chat_flow.py`、`test_cli_text_bridge.py`
+- 接線測試：`tests/test_app_wiring.py`（app.wire() 的端到端路由驗證）
 - 框架整合測試：`tests/test_core_integration.py`（生產者→Exchange→消費者全鏈）、
   `test_voice_flow_integration.py`（語音資料流：audio→STT→當前工作區）、
   `test_command_flow_integration.py`（指令流：熱鍵／語音指令／終端全鏈）、

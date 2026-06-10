@@ -6,18 +6,24 @@
 
 V-TUI Assistant 旨在提供一個高效、直觀的語音優先交互環境。通過整合 STT (語音轉文字)、TTS (文字轉語音) 以及本地 SLM (小語言模型) 的摘要能力，讓用戶能夠通過最自然的語音方式與強大的遠端 LLM 進行深度交流。
 
-## 🏗️ 系統架構
+## 🏗️ 系統架構（資料隧道 Data Tunnel）
 
-系統採用非同步事件驅動架構，確保各模組並發運行而不互相阻塞：
+系統採用「生產者／消費者＋具名通道」的資料隧道架構：所有模組掛在 topic 上，
+資料搬移由單執行緒交換核心（Exchange）統一執行，一次一筆、單點可觀測。
+詳見 [`docs/architecture.md`](docs/architecture.md)。
 
-- **Main Router (`main.py`)**: 核心調度器，負責各模組間的消息轉發。
+- **入口 (`main.py` → `app.py`)**: `app.py` 是純接線層——建佇列、掛轉接器、啟動模組，不含業務邏輯。
+- **框架 (`core/`)**: Message／Outbox／Inbox／Exchange／TunnelModule／轉接器。
 - **Audio Pipeline**:
     - **Recorder (`record.py`)**: 具備智能切片邏輯的錄音器，支援 VAD (靜音檢測)。
     - **VoiceToText (`voice_to_text.py`)**: 基於 `faster-whisper` 的本地 STT 引擎。
     - **AudioPriorityPlayer (`text_to_voice.py`)**: 具備優先級的 TTS 播放器，支援立即中斷與排隊。
-- **Logic & Buffer**:
-    - **TextAccumulator (`text_accumulator.py`)**: 消息緩衝區，允許在發送前累積多段輸入。
-    - **SummaryGenerator (`summary_generator.py`)**: 調用本地 SLM (如 gemma3:1b) 生成長回答摘要。
+- **業務模組 (`modules/`)**:
+    - **WorkspaceManager**: 多工作區與「當前工作區」指標；辨識文字唯一去向。
+    - **SttGate**: 語音指令模式分流（normal → 工作區、command → 指令）。
+    - **CommandRouter**: 熱鍵／斜線指令／語音指令的唯一處理者。
+    - **ChatFlow**: 對話歷史、摘要決策（SLM 如 gemma3:1b）、回覆重播。
+    - **SummaryGenerator (`summary_generator.py`)**: 調用本地 SLM 生成長回答摘要。
     - **SessionManager (`session_manager.py`)**: 管理對話歷史與多會話切換。
 - **Interface**:
     - **TuiRenderer (`tui_renderer.py`)**: 基於終端的交互界面。

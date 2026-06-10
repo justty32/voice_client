@@ -62,8 +62,10 @@ core/
 | `stt_text` | STT | SttGate（依模式分流） |
 | `raw_text` | SttGate（normal 模式）、終端文字輸入 | WorkspaceManager（塞進當前工作區） |
 | `commands` | 終端斜線指令、SttGate（command 模式）、熱鍵 | CommandRouter |
+| `cli_text` | 終端文字輸入 | CliTextBridge（EXIT 攔截＋顯示＋轉 raw_text） |
+| `recorder_event` | Recorder 事件 | CommandRouter（狀態列／錯誤復原） |
 | `gate_ctl` | CommandRouter | SttGate（模式切換） |
-| `app_ctl` | CommandRouter（/exit） | app.py（階段⑤接上） |
+| `app_ctl` | CommandRouter（/exit）、CliTextBridge（EOF） | app.py 主執行緒 |
 | `recorder_ctl` | CommandRouter | Recorder |
 | `tts_ctl` | CommandRouter | AudioPriorityPlayer |
 | `outbound` | CommandRouter（/send） | HttpClient |
@@ -92,7 +94,8 @@ core/
 
 - **WorkspaceManager**：持有多個 workspace 與「當前」指標（吸收現有
   WorkspaceController 與 TextAccumulator 的職責）。
-- **SttGate**：語音指令模式分流（吸收 main.py 的 is_command_mode）。
+- **SttGate**：語音指令模式分流（吸收 main.py 的 is_command_mode）＋語音文字 UI 顯示。
+- **CliTextBridge**：終端文字的 EXIT 攔截、使用者訊息顯示與 raw_text 轉發。
 - **CommandRouter**：所有斜線指令、語音指令、熱鍵指令的唯一處理者。
 - **ChatFlow**：對話歷史與摘要決策（吸收 main.py 的 `_route_response`、
   F1 摘要呈現與 last_full_response 重播）。
@@ -116,12 +119,16 @@ chat；chat 僅能以明確指令操作（/history、/clear chat），/ws chat �
 
 ## 遷移階段（每階段可獨立運作、有測試）
 
-- **階段①**：core/ 框架本體＋單元測試（不接任何業務模組）。
-- **階段②**：語音資料流遷移——Recorder、STT、WorkspaceManager 掛上框架。
-- **階段③**：指令流遷移——終端、熱鍵、語音指令改為生產者；CommandRouter 上線。
-- **階段④**：聊天流遷移——HttpClient、ChatFlow、SummaryGenerator。
-- **階段⑤**：呈現層收尾——TuiRenderer、TTS 控制；刪除舊 main.py 路由，
-  `app.py` 成為唯一入口（或 main.py 縮減為純接線）。
+- ✅ **階段①**：core/ 框架本體＋單元測試（不接任何業務模組）。
+- ✅ **階段②**：語音資料流遷移——Recorder、STT 經轉接器、WorkspaceManager 上線。
+- ✅ **階段③**：指令流遷移——SttGate 分流、CommandRouter 全指令集上線。
+- ✅ **階段④**：聊天流遷移——ChatFlow 上線、chat 工作區指令、重播鏈。
+- ✅ **階段⑤**：呈現層收尾——CliTextBridge、recorder_event、`app.py` 純接線入口，
+  main.py 縮為薄殼（舊路由刪除）。
+
+**重構完成（2026-06-10）。** 後續清理另案：text_accumulator.py 與
+workspace_controller.py 已不被新入口使用（mobile_server.py 仍用），
+mobile_server 對齊新框架時一併移除。
 
 ## 非目標
 
