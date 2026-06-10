@@ -39,9 +39,40 @@ class SessionManager:
                 self._sessions = {}
                 self._current_title = None
         
+        # 將所有 session 的 history 遷移為新格式 [role, content, timestamp]
+        for session in self._sessions.values():
+            if isinstance(session, dict):
+                self._migrate_history(session)
+
         # 再次確認恢復的 title 確實存在於列表中
         if self._current_title and self._current_title not in self._sessions:
             self._current_title = None
+
+    @staticmethod
+    def _migrate_history(session: dict):
+        """把 history 正規化為 List[List[str]]（每筆 [role, content, timestamp]）。
+
+        相容舊格式：history 內為 {role, content, timestamp} 的 dict。
+        """
+        hist = session.get("history")
+        if not isinstance(hist, list):
+            session["history"] = []
+            return
+        migrated: list[list[str]] = []
+        for item in hist:
+            if isinstance(item, dict):
+                migrated.append([
+                    str(item.get("role", "")),
+                    str(item.get("content", "")),
+                    str(item.get("timestamp", "")),
+                ])
+            elif isinstance(item, (list, tuple)):
+                role = str(item[0]) if len(item) > 0 else ""
+                content = str(item[1]) if len(item) > 1 else ""
+                ts = str(item[2]) if len(item) > 2 else ""
+                migrated.append([role, content, ts])
+            # 其它型別略過
+        session["history"] = migrated
 
     def _save_sessions(self):
         output = {
@@ -92,11 +123,11 @@ class SessionManager:
     def add_message(self, role: str, content: str):
         session = self.get_current_session()
         if session is not None:
-            session["history"].append({
-                "role": role,
-                "content": content,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            })
+            session["history"].append([
+                str(role),
+                str(content),
+                datetime.now(timezone.utc).isoformat(),
+            ])
             self._save_sessions()
 
     def delete_session(self, title: str) -> tuple[bool, str]:
@@ -168,10 +199,12 @@ class SessionManager:
             title = session_data.get("title")
             if not title:
                 return False, "檔案格式不正確，找不到 title 欄位。"
-            
+
             if title in self._sessions:
                 return False, f"當前已存在同名對話: {title}，請先使用 /rename 指令更改現有對話名稱。"
-            
+
+            # 載入的檔案可能是舊格式，遷移 history
+            self._migrate_history(session_data)
             self._sessions[title] = session_data
             self._current_title = title
             self._save_sessions()
@@ -205,9 +238,9 @@ class SessionManager:
         
         lines = [f"--- 對話歷史: {session['title']} ---"]
         for msg in session["history"]:
-            role = msg.get("role", "unknown")
-            content = msg.get("content", "")
-            
+            role = msg[0] if len(msg) > 0 else "unknown"
+            content = msg[1] if len(msg) > 1 else ""
+
             if role == "user":
                 prefix = "用戶說："
             elif role == "assistant":

@@ -111,9 +111,12 @@ class HttpClient:
         if session and "history" in session:
             # 限制歷史紀錄長度，避免過長導致 429
             # 這裡我們手動將對話串接成一段文字，讓模型理解上下文
+            # history 為 List[List[str]]：[role, content, timestamp]
             for msg in session["history"][-6:-1]: # 取最後幾筆作為上下文，排除剛加入的一筆
-                role_label = "使用者" if msg["role"] == "user" else "AI助手"
-                formatted_history += f"{role_label}: {msg['content']}\n"
+                role = msg[0] if len(msg) > 0 else ""
+                content = msg[1] if len(msg) > 1 else ""
+                role_label = "使用者" if role == "user" else "AI助手"
+                formatted_history += f"{role_label}: {content}\n"
         
         # 組合上下文與當前問題
         if formatted_history:
