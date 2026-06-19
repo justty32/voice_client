@@ -33,6 +33,20 @@ def _pick_tts_driver() -> str | None:
     return "espeak"
 
 
+def _has_cjk(text: str) -> bool:
+    """文字中是否含 CJK 漢字（用於 espeak 語言切換）。"""
+    return any("一" <= ch <= "鿿" for ch in text)
+
+
+def _pick_espeak_voice(text: str) -> str:
+    """依文字內容選 espeak 語音：含漢字→普通話(cmn)，否則英文(en)。
+
+    espeak 預設語音為英文，唸中文會逐字拼錯，故需顯式切換。
+    中英混句以「是否含漢字」整句二選一（小修取捨，混句仍非完美）。
+    """
+    return "cmn" if _has_cjk(text) else "en"
+
+
 # ── TTS Worker (runs in subprocess) ───────────────────────────────────────────
 
 def _tts_worker(text: str, rate: int, volume: float, driver: str | None):
@@ -42,6 +56,12 @@ def _tts_worker(text: str, rate: int, volume: float, driver: str | None):
         engine = pyttsx3.init(driverName=driver) if driver else pyttsx3.init()
         engine.setProperty("rate", rate)
         engine.setProperty("volume", volume)
+        # 僅 espeak 需要依語言切 voice；其他 driver（sapi5/nsss）沿用系統預設。
+        if driver == "espeak":
+            try:
+                engine.setProperty("voice", _pick_espeak_voice(text))
+            except Exception:
+                pass  # 切換失敗時退回預設語音，至少英文可用
         engine.say(text)
         engine.runAndWait()
         engine.stop()
