@@ -1,6 +1,6 @@
 # Voice Client 架構文檔
 
-更新日期：2026-06-10
+更新日期：2026-06-22
 適用版本：`refactor/data-tunnel` 分支（資料隧道重構**全部完成**，`app.py` 為接線入口）
 
 ## 1. 總覽
@@ -20,7 +20,7 @@ LLM，回覆再經摘要（本地 SLM）與 TTS 朗讀。
         │ Recorder     │─ outbox ─▶│                      │─ inbox ▶│ STT          │
         │ STT          │─ outbox ─▶│  Exchange            │─ inbox ▶│ 當前工作區    │
         │ 終端輸入      │─ outbox ─▶│  每次 tick 只搬一筆   │─ inbox ▶│ CommandRouter│
-        │ 熱鍵          │─ outbox ─▶│  依路由表 topic→inbox │─ inbox ▶│ TUI / TTS    │
+        │ 熱鍵／本機IPC │─ outbox ─▶│  依路由表 topic→inbox │─ inbox ▶│ TUI / TTS    │
         └──────────────┘           └──────────────────────┘        └──────────────┘
 ```
 
@@ -106,6 +106,7 @@ LLM，回覆再經摘要（本地 SLM）與 TTS 朗讀。
 | `text_accumulator.py`、`workspace_controller.py` | 已被 WorkspaceManager＋CommandRouter 取代；僅 `mobile_server.py` 仍使用（待清理） |
 | `workspace.py` | 沿用（WorkspaceManager 的底層資料結構） |
 | `terminal_input.py`、`keyboard_listener.py` | 經轉接器作為 `commands`／`cli_text` 生產者（模組零修改） |
+| `local_control.py` | Wayland 桌面快捷鍵的 Unix datagram socket 接收器；將白名單命令送入既有 `key_signal_queue` |
 | `main.py` 的 `is_command_mode` | SttGate（`modules/stt_gate.py`，階段③） |
 | `http_client.py`、`summary_generator.py` | 經轉接器掛上框架（階段④完成邏輯、階段⑤接線；模組零修改） |
 | `session_manager.py` | 由 CommandRouter／ChatFlow 同步呼叫（保持同步物件，零修改） |
@@ -131,6 +132,10 @@ workspace_controller.py。
 
 - **長駐執行緒**：每個業務模組（錄音、STT、TTS、HTTP…）一條；Exchange 一條；
   全部 daemon，`stop()` 以 `join(timeout)` 收尾。
+- **本機控制**：`LocalControl` 綁定 `$XDG_RUNTIME_DIR/voice-client-control.sock`
+  （權限 `0600`），只接受固定命令白名單。KDE 快捷鍵啟動短命 helper，透過
+  Unix datagram 將 `RECORD_TOGGLE` 送入與 `KeyboardListener` 共用的命令 queue。
+  0.5 秒相同命令去抖用來吸收桌面啟動動作可能產生的重複觸發。
 - **單點交換**：佇列間搬移僅由 Exchange 執行緒進行——資料流可在一處完整記 log。
 - **錯誤策略**：模組 `handle()` 例外 → log + `ui_event` 通知使用者，迴圈續行；
   Exchange 例外 → log 後續行；無路由訊息 → warning + 丟棄。
@@ -145,6 +150,7 @@ workspace_controller.py。
   `test_command_router_session.py`、`test_command_router_voice.py`、
   `test_chat_flow.py`、`test_cli_text_bridge.py`
 - 接線測試：`tests/test_app_wiring.py`（app.wire() 的端到端路由驗證）
+- 本機控制測試：`tests/test_local_control.py`（白名單、轉發、未知命令、重複命令去抖）
 - 框架整合測試：`tests/test_core_integration.py`（生產者→Exchange→消費者全鏈）、
   `test_voice_flow_integration.py`（語音資料流：audio→STT→當前工作區）、
   `test_command_flow_integration.py`（指令流：熱鍵／語音指令／終端全鏈）、
@@ -156,3 +162,4 @@ workspace_controller.py。
 - 設計定案：`plans/data_tunnel_design.md`
 - 階段①計畫：`plans/data_tunnel_stage1_plan.md`
 - 使用手冊：`docs/user_manual.md`
+- KDE Wayland 快捷鍵：`docs/kde_wayland_shortcuts.md`

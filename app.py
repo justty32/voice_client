@@ -245,6 +245,7 @@ def main():
     # 硬體／IO 模組延遲匯入（測試環境不需要這些相依性）
     from http_client import HttpClient
     from keyboard_listener import KeyboardListener
+    from local_control import LocalControl
     from record import Recorder
     from session_manager import SessionManager
     from summary_generator import SummaryGenerator
@@ -289,6 +290,7 @@ def main():
 
     # ── 建立既有（硬體/IO）模組（port main.py:79-88）─────────────────────
     keyboard_listener = KeyboardListener(config, key_signal_queue)
+    local_control     = LocalControl(key_signal_queue)
     terminal_input    = TerminalInput(config, cli_text_queue, cli_cmd_queue)
     tui_renderer      = TuiRenderer(config, ui_event_queue)
     recorder          = Recorder(config, recorder_cmd_queue, audio_queue_out, recorder_event_queue)
@@ -340,6 +342,7 @@ def main():
 
     # ── 啟動所有既有模組（port main.py:90-99）────────────────────────────
     keyboard_listener.start()
+    local_control.start()
     terminal_input.start()
     tui_renderer.start()
     recorder.start()
@@ -360,13 +363,18 @@ def main():
     # 直接放 UiEvent 進 ui_event_queue（我們擁有此 queue，無需再走 Exchange）。
     # UiEvent 已在上方 main() 本地 import。
     ui_event_queue.put(UiEvent("status", "待機"))
-    if not keyboard_listener.is_active():
+    if not keyboard_listener.is_active() and not local_control.is_active():
         ui_event_queue.put(UiEvent("message", {
             "role": "system",
             "text": (
                 f"全域熱鍵已停用（{keyboard_listener.inactive_reason()}）。\n"
                 "請在終端輸入文字後按 Enter 送出；或使用 /send、/stop、/show 等指令。"
             ),
+        }))
+    elif not keyboard_listener.is_active():
+        ui_event_queue.put(UiEvent("message", {
+            "role": "system",
+            "text": "Wayland 本機控制已啟用；可透過 KDE 全域快捷鍵操作錄音。",
         }))
     log.info("Voice Client started. Session: %s", session_manager.current_title)
 
@@ -387,6 +395,7 @@ def main():
     finally:
         tts_cmd_queue.put("TERMINATE")
         keyboard_listener.stop()
+        local_control.stop()
         terminal_input.stop()
         tui_renderer.stop()
         recorder.stop()

@@ -3,6 +3,9 @@ numpy
 pyaudio
 faster-whisper
 pyttsx3
+kokoro-onnx==0.5.0
+soundfile
+misaki-fork[zh]
 pynput
 rich
 fastapi
@@ -11,3 +14,7 @@ pydantic
 pydub
 cryptography
 pyperclip
+
+# GPU（device=cuda）才需要：CTranslate2 4.x 針對 CUDA 12 編譯，需 libcublas.so.12。
+# 系統若是 CUDA 13 缺 .so.12，安裝後由 voice_to_text 自動預載。CPU 模式可不裝。
+nvidia-cublas-cu12; platform_system == "Linux"

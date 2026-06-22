@@ -1,6 +1,6 @@
 # Voice Client 使用手冊
 
-更新日期：2026-06-10
+更新日期：2026-06-22
 
 這是一個語音優先的終端 AI 客戶端。按熱鍵說話，Whisper 把語音轉成文字累積在工作區，你決定什麼時候送給 LLM，回覆會自動摘要並朗讀。
 
@@ -40,8 +40,10 @@ pip install faster-whisper
 ### 1.3 熱鍵支援
 
 - **X11**：F6–F10 全域熱鍵正常。
-- **Wayland**：`pynput` 無法抓全域鍵，啟動時會印 warning，改用斜線指令操作。TUI 打字流程不受影響。
-- **SSH / headless**：同 Wayland，無熱鍵，斜線指令一樣能用。
+- **KDE Plasma + Wayland**：`pynput` 無法抓全域鍵，但可以使用 KDE Global
+  Shortcuts 呼叫 `local_control.py`。目前本機已設定 Alt+F8／Alt+F9；完整設定與故障排除見
+  [KDE Wayland 全域快捷鍵](kde_wayland_shortcuts.md)。
+- **其他 Wayland、SSH / headless**：沒有 KDE 快捷鍵時使用斜線指令，TUI 打字流程不受影響。
 
 ---
 
@@ -70,8 +72,12 @@ model_size = base
 | `medium` | 1.5 GB | 慢 | 很好 | CPU 跑會明顯延遲 |
 | `large-v2` | 3 GB | 很慢 | 最好 | 需要 GPU |
 | `large-v3` | 3 GB | 很慢 | 最好（新版） | 需要 GPU |
+| `large-v3-turbo` | 1.6 GB | 快（GPU） | 很好（略低於 v3） | **GPU 推薦，速度／準度最佳平衡** |
 
-一般建議：CPU 跑用 `base`（或 `small` 可接受），有 GPU 用 `small` 或 `medium`。
+一般建議：CPU 跑用 `base`（或 `small` 可接受），有 GPU 用 `large-v3-turbo`（快又準、VRAM 省）；要極致準度才用 `large-v3`。
+
+> 想要中文辨識再上一層樓？有個比 Whisper 對中文更準的替代引擎（SenseVoice）調查
+> 記在 [docs/sensevoice_investigation.md](sensevoice_investigation.md)，尚未實作。
 
 ### 2.3 CPU vs GPU
 
@@ -80,7 +86,15 @@ device = cpu       # 預設，不需要 GPU
 device = cuda      # 需要 NVIDIA GPU + CUDA 環境
 ```
 
-GPU 跑時速度可快 5–10 倍。如果 `nvidia-smi` 有輸出、PyTorch 能看到 GPU，就可以設 `cuda`。
+GPU 跑時速度可快 5–10 倍。如果 `nvidia-smi` 有輸出、CTranslate2 能看到 GPU，就可以設 `cuda`。
+
+> **CUDA 13 系統注意**：faster-whisper 的後端 CTranslate2 4.x 是針對 CUDA 12 編譯的，
+> 需要 `libcublas.so.12`。若系統是 CUDA 13（只提供 `libcublas.so.13`），GPU 轉譯會報
+> `Library libcublas.so.12 is not found`。解法是裝 pip 版 cuBLAS（不污染系統 CUDA）：
+> ```bash
+> pip install nvidia-cublas-cu12      # 或 uv pip install --python .venv/bin/python nvidia-cublas-cu12
+> ```
+> 裝好後 `voice_to_text.py` 啟動時會自動預載它，無需設 `LD_LIBRARY_PATH`。
 
 ### 2.4 compute_type（精度／速度權衡）
 
@@ -112,7 +126,17 @@ vad_filter = true  # 靜音偵測過濾，減少背景雜音被辨識成文字
 
 `beam_size = 1` 是貪婪解碼，速度最快，準確度比 5 差一點，低資源時可試。
 
-### 2.7 常見 STT 問題
+### 2.7 initial_prompt（繁體與常用詞引導）
+
+```ini
+initial_prompt = 以下是繁體中文的句子。
+```
+
+Whisper 對中文預設會輸出**簡體**。`initial_prompt` 會被當成「上文」餵給模型，
+用一句繁體中文當提示就能引導它輸出繁體；也可以塞入你常講但容易被辨錯的專有名詞
+（例如人名、技術術語），提高這些詞的辨識率。留空則不使用。
+
+### 2.8 常見 STT 問題
 
 | 症狀 | 處理 |
 |---|---|
@@ -122,6 +146,9 @@ vad_filter = true  # 靜音偵測過濾，減少背景雜音被辨識成文字
 | CUDA out of memory | 換小模型，或 `compute_type = int8` |
 | 辨識文字亂跳雜訊 | 確認 `vad_filter = true`，調高 `silence_threshold` |
 | 說中文被辨識成日文 | 設 `language = zh` 強制中文 |
+| 中文輸出成簡體 | 設 `initial_prompt = 以下是繁體中文的句子。` |
+| 認錯字太多 | 換更大模型（GPU 用 `large-v3-turbo` 或 `large-v3`），並固定 `language` |
+| `libcublas.so.12 is not found` | CUDA 13 系統缺 CUDA 12 cuBLAS，`pip install nvidia-cublas-cu12`（見 2.3） |
 | 第一次啟動很慢 | 正在下載模型，等它跑完，之後就快了 |
 
 ---
@@ -132,11 +159,15 @@ vad_filter = true  # 靜音偵測過濾，減少背景雜音被辨識成文字
 # 桌面 TUI 模式（一般使用）
 python main.py
 
+# 使用現有 .venv 啟動
+uv run app.py
+
 # 手機 Web 模式
 python mobile_server.py
 ```
 
-啟動後狀態列顯示「待機」就代表就緒了。
+啟動後狀態列顯示「待機」就代表就緒了。在 KDE Wayland 上看到
+「Wayland 本機控制已啟用」代表程式端的快捷鍵控制 socket 已建立。
 
 ---
 
@@ -144,9 +175,9 @@ python mobile_server.py
 
 | 鍵 | 功能 |
 |---|---|
-| **F8** | 錄音開關：按一下開始、再按一下停止並辨識，文字進**當前工作區** |
+| **Alt+F8**（KDE）／**F8**（X11） | 錄音開關：按一下開始、再按一下停止並辨識，文字進**當前工作區** |
 | **F7** | 語音指令模式：說的話被解析成指令（說「發送」就等於 `/send`） |
-| **F9** | 快速發送：把 buffer 內容馬上送給 LLM |
+| **Alt+F9**（KDE）／**F9**（X11） | 快速發送：把 buffer 內容馬上送給 LLM |
 | **F10** | 強制停止 TTS：中斷正在朗讀的回覆 |
 | **F6** | 重播：用 TTS 朗讀最後一次 LLM 回覆的原文 |
 
@@ -163,6 +194,10 @@ key_play_last_original = f6
 
 > **注意**：`key_command_toggle` 預設值是 f7，但 `config.ini` 預設沒有這行。
 > 如果你要改 F7 的鍵位，手動加這行再改。
+
+> **KDE Wayland 注意**：`config.ini` 只影響 `pynput` 路徑，不會自動修改 KDE
+> 的快捷鍵。目前 KDE 已註冊 Alt+F8／Alt+F9；要增加 F7/F10，需建立對應的 KDE
+> 快捷鍵動作，詳見 [KDE Wayland 全域快捷鍵](kde_wayland_shortcuts.md)。
 
 ---
 
@@ -184,7 +219,8 @@ key_play_last_original = f6
 /ws buffer   ← 切回 buffer
 ```
 
-> **重要**：語音辨識出的文字**只進當前工作區**。想把語音收進 stt，先 `/ws stt` 再按 F8 錄音。
+> **重要**：語音辨識出的文字**只進當前工作區**。想把語音收進 stt，先 `/ws stt`，
+> 再按 Alt+F8（KDE）或 F8（X11）錄音。
 
 ---
 
@@ -293,12 +329,13 @@ compute_type = int8        # CPU: int8/float32；GPU: float16
 language = auto            # auto/zh/en/ja/…
 beam_size = 5              # 1=最快，5=預設，越大越準但越慢
 vad_filter = true          # 靜音過濾，建議開著
+initial_prompt =           # 上文提示，引導繁體／常用詞；留空不使用
 ```
 
 ### [SLM] — 本地摘要小模型
 
 ```ini
-enabled = True
+enabled = false             # 直通 LLM→TTS；啟用後長回覆會先摘要
 model = gemma3:1b          # Ollama 模型名稱
 base_url = http://localhost:11434/v1
 summary_threshold = 20     # 回覆超過幾個字才啟動摘要
@@ -307,10 +344,20 @@ summary_threshold = 20     # 回覆超過幾個字才啟動摘要
 ### [LLM] — 主對話模型
 
 ```ini
-model = gemma3:12b
-base_url = http://localhost:11434/v1
-api_key =                  # 用 Ollama 本地跑不需要填
+model = qwen/qwen3.5-9b
+base_url = http://localhost:1234/v1
+api_key =                  # LM Studio 未啟用驗證時留空
 ```
+
+LM Studio 使用方式：
+
+1. 在 Developer 頁啟動 Local Server，預設 port 為 `1234`。
+2. 載入與 `model` 相同 ID 的模型；也可啟用 Just-In-Time loading。
+3. 確認 `curl http://localhost:1234/v1/models` 能列出模型。
+4. `[SERVER] enabled = false`，讓 Voice Client 直接呼叫 `[LLM]`。
+
+目前預設 `[SLM] enabled = false`，因此 LLM 完整回覆會直接送進 Kokoro。若啟用 SLM，
+還必須把 `[SLM]` 指向一個可用模型，否則長回覆只會進摘要流程而不會朗讀。
 
 Gemini 或其他雲端 API 範例：
 
@@ -330,10 +377,17 @@ url = http://localhost:8000/chat
 ### [TTS] — 語音合成
 
 ```ini
-engine = pyttsx3      # pyttsx3（本地）或 kokoro（HTTP TTS）
-rate = 180            # 語速（字/分）
-volume = 1.0          # 音量 0.0–1.0
+engine = kokoro
+rate = 180                         # 只供 pyttsx3 使用
+volume = 1.0                       # 音量 0.0–1.0
+kokoro_model_dir = models/kokoro
+kokoro_voice_en = af_heart
+kokoro_voice_zh = zf_001
+kokoro_speed = 1.0
 ```
+
+`engine` 可設為 `kokoro` 或 `pyttsx3`。Kokoro 使用本機 ONNX 模型，中英混合文字會分段
+合成；模型由長駐 worker 載入一次。`/stop`、F10 與 high priority 訊息都能取消目前播放。
 
 ---
 
@@ -341,12 +395,16 @@ volume = 1.0          # 音量 0.0–1.0
 
 | 症狀 | 解法 |
 |---|---|
-| 啟動說「全域熱鍵已停用」 | 你在 Wayland 或 SSH，改用斜線指令；或切 X11 工作階段 |
+| KDE Wayland 上 Alt+F8 沒反應 | 確認 Voice Client 正在執行、`/run/user/$UID/voice-client-control.sock` 存在，並查看 [KDE 快捷鍵文件](kde_wayland_shortcuts.md) |
+| 啟動說「全域熱鍵已停用」 | `pynput` 路徑不可用；KDE 使用者確認是否同時顯示「Wayland 本機控制已啟用」，其他環境改用斜線指令 |
+| 同時開兩個 Voice Client | 不支援；兩個程序會爭用同一個控制 socket，只保留一個桌面程序 |
 | 錄音按了沒反應 | 確認麥克風權限，`pamixer --list-sources` 看看有沒有輸入裝置 |
 | 辨識很慢 | `model_size = tiny`，`beam_size = 1` |
-| 完全沒聲音 | `pacman -S espeak-ng` 裝了嗎？或 `/stop` 後重試 |
+| Kokoro 完全沒聲音 | 確認 `models/kokoro/` 模型完整、系統有可用的 PortAudio 輸出裝置，並查看 `output/system.log` |
+| pyttsx3 完全沒聲音 | Linux 確認已安裝 `espeak-ng` |
 | TTS 講話很怪 | `pyttsx3` 的 rate 調慢，或換 `kokoro` 引擎 |
 | LLM 沒有回應 | 確認 `[LLM] base_url` 對了，本地 Ollama 的話先確認 `ollama serve` 在跑 |
+| LM Studio 沒有回應 | 確認 Local Server 已啟動、`/v1/models` 可連線，且 `model` ID 完全相同 |
 | 打字輸入沒反應 | 游標要在終端機輸入框，不是在其他地方 |
 | pyaudio 裝不起來 | `sudo pacman -S portaudio python-pyaudio` 試試系統包 |
 | 手機連不上 | 確認同一個 WiFi；防火牆 `sudo ufw allow 8080`；網址用 `https://` |

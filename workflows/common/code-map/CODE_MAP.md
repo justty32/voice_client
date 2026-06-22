@@ -17,9 +17,10 @@
 
 - `record.py`：PyAudio 錄音、音量判定、pre-roll、靜音／時長切片。
 - `voice_to_text.py`：faster-whisper STT。
-- `text_to_voice.py`：優先級 TTS、播放中斷、平台 driver 與 espeak 語言選擇。
+- `text_to_voice.py`：優先級 TTS、播放中斷、Kokoro 長駐 worker、中英分段，以及
+  pyttsx3 平台 driver／espeak 語言選擇。
 - `modules/stt_gate.py`：辨識文字在 normal／command 模式間分流。
-- 測試：`tests/test_record.py`、`test_voice_to_text.py`、`test_stt_gate.py`、
+- 測試：`tests/test_record.py`、`test_voice_to_text.py`、`test_text_to_voice.py`、`test_stt_gate.py`、
   `test_voice_flow_integration.py`。
 
 ## 指令、工作區與對話
@@ -38,10 +39,13 @@
 ## 介面
 
 - `terminal_input.py`：終端文字與斜線指令來源。
-- `keyboard_listener.py`：全域熱鍵來源。
+- `keyboard_listener.py`：X11 等可由 `pynput` 監聽環境的全域熱鍵來源。
+- `local_control.py`：Wayland/KDE 使用的 Unix socket 控制入口；只接受白名單命令，
+  並送入與 `KeyboardListener` 共用的命令 queue。
 - `tui_renderer.py`：Rich 終端呈現。
 - `mobile_server.py`：手機 FastAPI／WebSocket 入口。
 - `static/`：手機前端。
+- 測試：`tests/test_local_control.py`。
 
 ## 設定、工具與歷史相容
 

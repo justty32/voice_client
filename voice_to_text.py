@@ -24,6 +24,8 @@ class VoiceToText:
         self._language = None if language in ("", "auto", "detect") else language
         self._beam_size = int(stt.get("beam_size", 5))
         self._vad_filter = stt.getboolean("vad_filter", True)
+        initial_prompt = stt.get("initial_prompt", "").strip()
+        self._initial_prompt = initial_prompt or None
 
         self._model = None
         self._thread: threading.Thread | None = None
@@ -53,9 +55,39 @@ class VoiceToText:
             except Exception as exc:
                 log.error("STT transcription failed: %s", exc)
 
+    def _preload_cuda_libs(self):
+        """讓 GPU 轉譯找得到 cuBLAS。
+
+        CTranslate2（faster-whisper 後端）4.x 針對 CUDA 12 編譯，runtime 需要
+        ``libcublas.so.12``。系統若是 CUDA 13（只提供 ``libcublas.so.13``），GPU
+        轉譯時會報 ``libcublas.so.12 is not found``。我們把 pip 安裝的
+        ``nvidia-cublas-cu12`` 預載進本行程，CTranslate2 即可依 soname 找到它，
+        不需污染系統 CUDA 或設定 ``LD_LIBRARY_PATH``。
+
+        僅在 device 為 cuda 時嘗試；失敗只記 warning 不中斷（CPU 模式或未安裝
+        該套件時照常運作）。
+        """
+        if "cuda" not in self._device:
+            return
+        try:
+            import ctypes
+            import os
+            import nvidia.cublas as cublas_pkg
+
+            libdir = os.path.join(list(cublas_pkg.__path__)[0], "lib")
+            # 先載 cublasLt（cublas 依賴它），用 RTLD_GLOBAL 讓後續 dlopen 看得到
+            for name in ("libcublasLt.so.12", "libcublas.so.12"):
+                ctypes.CDLL(os.path.join(libdir, name), mode=ctypes.RTLD_GLOBAL)
+            log.info("Preloaded CUDA 12 cuBLAS from %s", libdir)
+        except Exception as exc:
+            log.warning(
+                "cuBLAS 預載失敗，GPU 轉譯可能報 libcublas.so.12 not found"
+                "（CUDA 13 系統請 pip 安裝 nvidia-cublas-cu12）：%s", exc)
+
     def _load_model(self):
         try:
             from faster_whisper import WhisperModel
+            self._preload_cuda_libs()
             log.info("Loading Whisper model '%s' on %s (%s)…",
                      self._model_size, self._device, self._compute_type)
             self._model = WhisperModel(
@@ -75,5 +107,6 @@ class VoiceToText:
             beam_size=self._beam_size,
             language=self._language,
             vad_filter=self._vad_filter,
+            initial_prompt=self._initial_prompt,
         )
         return "".join(seg.text for seg in segments).strip()

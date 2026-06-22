@@ -1,18 +1,15 @@
 # TTS 中英文方案調查（含 Kokoro 安裝指南）
 
-> 調查日期：2026-06-20　環境：Manjaro Linux、Python 3.12.13（`.venv`，uv 建立）
+> 調查日期：2026-06-20；落地更新：2026-06-22。環境：Manjaro Linux、Python 3.12.13。
 
 ## 0. 現況結論（重要）
 
-**目前本機 TTS 完全發不出聲。**
+Kokoro 已於 2026-06-22 接入桌面 TTS，`config.ini` 預設為 `engine = kokoro`。
 
-- `config.ini` 設定 `engine = pyttsx3`，`text_to_voice.py` 在 Linux 寫死使用 `espeak` driver。
-- 但本機 **沒有安裝 espeak / espeak-ng**，`pyttsx3.init("espeak")` 直接拋
-  `RuntimeError: ... do not have eSpeak or eSpeak-ng installed!`。
-- 換言之：「有沒有可用的中英文模型」→ **現在沒有**，需先補裝後端。
-
-另注意：`config.ini` 內的 `engine`、`kokoro_url` 這些鍵，`text_to_voice.py` 目前
-**完全沒讀**（寫死 pyttsx3）。要切換引擎需改程式，不是改設定就好。
+- 英文使用 Kokoro v1.0，中文使用專用 v1.1-zh 模型。
+- `text_to_voice.py` 以長駐 worker 載入模型，中英混合文字會分段合成。
+- 播放使用 PyAudio，保留 high priority 打斷、F10／`/stop` 與 mute 語意。
+- `pyttsx3` 仍可作 fallback；Linux 使用該後端時才需要 `espeak-ng`。
 
 ---
 
@@ -56,26 +53,38 @@ Python 需求 `>=3.10, <3.13` — 本機 **3.12.13 ✅ 相容**。
 ```bash
 # 在專案 venv 裡
 VIRTUAL_ENV=.venv uv pip install kokoro-onnx soundfile
-# 中文分詞/拼音需要 misaki[zh]（jieba + pypinyin），英文 OOD 才需 espeak-ng
-VIRTUAL_ENV=.venv uv pip install "misaki[zh]"
+# 中文 v1.1 分詞／拼音
+VIRTUAL_ENV=.venv uv pip install "misaki-fork[zh]"
 ```
 下載模型檔（放到專案目錄，例如 `models/`）：
 ```bash
 # 約 300MB；另有量化版 ~80MB
 wget https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx
 wget https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin
+# 中文專用 v1.1
+wget https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.1/kokoro-v1.1-zh.onnx
+wget https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.1/voices-v1.1-zh.bin
+wget -O config-v1.1-zh.json https://huggingface.co/hexgrad/Kokoro-82M-v1.1-zh/raw/main/config.json
 ```
 最小範例：
 ```python
 import soundfile as sf
 from kokoro_onnx import Kokoro
+from misaki import zh
 
-kokoro = Kokoro("models/kokoro-v1.0.onnx", "models/voices-v1.0.bin")
 # 英文
+kokoro = Kokoro("models/kokoro-v1.0.onnx", "models/voices-v1.0.bin")
 samples, sr = kokoro.create("Hello, this is a test.", voice="af_heart", lang="en-us")
 sf.write("en.wav", samples, sr)
-# 中文（語音用 zf_/zm_，lang 用 "zh"）
-samples, sr = kokoro.create("你好，這是一段測試。", voice="zf_xiaoxiao", lang="zh")
+# 中文 v1.1 先由 Misaki 轉音素
+g2p = zh.ZHG2P(version="1.1")
+kokoro_zh = Kokoro(
+    "models/kokoro-v1.1-zh.onnx",
+    "models/voices-v1.1-zh.bin",
+    vocab_config="models/config-v1.1-zh.json",
+)
+phonemes, _ = g2p("你好，這是一段測試。")
+samples, sr = kokoro_zh.create(phonemes, voice="zf_001", is_phonemes=True)
 sf.write("zh.wav", samples, sr)
 ```
 - 體積：onnx ~300MB（量化 ~80MB）。
@@ -97,24 +106,16 @@ for gs, ps, audio in pipeline("中國人民不信邪也不怕邪", voice="zf_xia
 
 ---
 
-## 3. 接進本專案的注意事項（給未來實作）
+## 3. 本專案落地方式
 
-1. `text_to_voice.py` 目前是「每句 spawn 一個 pyttsx3 子進程、直接播放」。
-   Kokoro 是「合成出 numpy/wav → 需要自己播放」，所以接 Kokoro 要：
-   - 在 worker 裡載入一次模型（**不要每句重載**，載入慢）；
-   - 合成 → 用 `sounddevice` / `pydub` / ffmpeg 播放；
-   - 保留現有的優先級佇列與「high 打斷」語意（打斷 = 停止當前播放）。
-2. 應讓 `config.ini` 的 `engine` 真正生效：`pyttsx3 | gtts | kokoro` 三選一，
-   各自一個後端類別，`AudioPriorityPlayer` 依設定挑選。
-3. 中英混合句：Kokoro 單次 `create` 綁定一個 `lang`，混合中英可能需要分段（依語言切片）
-   或接受以單一語言模型硬唸。先確認實際語料再決定。
-4. 語音檔/模型不要進 git，加到 `.gitignore`（onnx + voices.bin 共 ~300MB）。
+1. `AudioPriorityPlayer` 依 `engine = kokoro | pyttsx3` 選擇後端。
+2. Kokoro worker 在程序存活期間重用模型；取消播放使用單調遞增任務編號，不需殺掉 worker。
+3. 中英混句依 CJK／ASCII 文字切片，分別使用 v1.1-zh 與 v1.0。
+4. 模型位於 `models/kokoro/` 並由 `.gitignore` 排除，總大小約 717 MB。
 
 ## 4. 建議落地順序
 
-1. **立刻**：`sudo pacman -S espeak-ng` → 確保 TTS 不啞（零改碼）。
-2. **短期**：把 `engine` 設定接通，讓 pyttsx3 / gtts 可切換。
-3. **目標**：導入 `kokoro-onnx`（中英文高品質、離線），作為預設引擎，espeak-ng 留作後援。
+目前以上落地項目均已完成；剩餘項目是實際喇叭與完整對話流程的人工驗證。
 
 ## 參考來源
 - [kokoro-onnx (GitHub, thewh1teagle)](https://github.com/thewh1teagle/kokoro-onnx)

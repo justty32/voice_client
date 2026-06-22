@@ -220,6 +220,7 @@ __marimo__/
 
 # Workspace specific
 .claude/
+models/kokoro/
 output/*.json
 output/*.log
 output/*.txt
