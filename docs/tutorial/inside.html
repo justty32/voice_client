@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>它裡面怎麼運作｜Voice Client 入門</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Huninn&family=Noto+Sans+TC:wght@400;600;700&family=JetBrains+Mono:wght@400;700&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="index.html">Voice Client 入門</a><nav class="toc" aria-label="章節"><a href="index.html">開始</a><a href="setup.html">準備</a><a href="talk.html">說話</a><a href="ai.html">寄出</a><a href="commands.html">指令</a><a href="mobile.html">手機</a><a href="help.html">卡住了</a><a href="inside.html" aria-current="page">裡面</a></nav></header>
+<main>
+<section class="ch"><div class="no">第 07 章</div><h1>它裡面怎麼運作</h1><p class="lede">給想改程式的人：小幫手的內部是一間郵局。</p></section>
+<figure><img src="img/postoffice.svg" alt="郵局比喻：房間把信交給 Exchange 郵局，郵局照 topic 分給收件房間" width="720"></figure>
+<h2>一間郵局</h2>
+<p>小幫手裡有很多房間（模組）。房間之間<b>從不直接講話</b>，只寫信：</p>
+<ol>
+<li>每個房間有<b>寄件匣</b>（Outbox）和<b>收件匣</b>（Inbox）。</li>
+<li>信封寫 <b>topic</b>（寄給哪類收件人），裡面放 <b>payload</b>（內容）。</li>
+<li><b>郵差</b>（Exchange）一次拿一封，照 topic 放進收件匣。</li>
+</ol>
+<p>這叫 <b>Data Tunnel（資料隧道）</b>：房間只要懂信的格式，所有信都經過同一個郵差，查問題只看一處。</p>
+<h2>信封上的字只寫在一個地方</h2>
+<p><code>protocol/topics.py</code>（有哪些 topic）、<code>payloads.py</code>（信長什麼樣）、<code>commands.py</code>（指令和熱鍵）。測試會比對程式、文件和這裡，改錯就紅燈。</p>
+<h2>房間在哪裡</h2>
+<div class="cheat">
+<div><b><code>speech/</code></b><span>耳朵、速記員、嘴巴</span></div>
+<div><b><code>ui/</code></b><span>鍵盤、輸入、畫面、KDE 入口</span></div>
+<div><b><code>llm/</code></b><span>寄信給 AI、寫摘要</span></div>
+<div><b><code>domain/</code></b><span>托盤、對話筆記本</span></div>
+<div><b><code>modules/</code></b><span>指令總管、聊天流程</span></div>
+<div><b><code>core/</code></b><span>郵局本身</span></div>
+<div><b><code>app_wiring/</code></b><span><code>build_core()</code> 蓋好整棟樓</span></div>
+<div><b><code>mobile/</code></b><span>只換門口，裡面同一棟樓</span></div>
+</div>
+<h2>自己探險</h2>
+<pre><code>python workflows/common/code-map/codemap.py topics   # 誰寄、誰收
+.venv/bin/python -m pytest -q                         # 改完跑測試</code></pre>
+<p>正式說明在<a href="../architecture.md">架構文檔</a>與 <a href="../../workflows/common/code-map/CODE_MAP.md">CODE_MAP</a>。</p>
+</main>
+<nav class="pager"><a href="help.html"><span>上一章</span>卡住了怎麼辦</a></nav>
+</div>
+</body>
+</html>

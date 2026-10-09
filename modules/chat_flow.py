@@ -92,6 +92,8 @@ class ChatFlow(TunnelModule):
         msg = payload.get("message", "Unknown error")
         self.emit(T.UI_EVENT, P.ui_message("system", f"[錯誤] {msg}"))
         self.emit(T.TTS, P.tts_item(f"發生錯誤：{msg}", "high"))
+        # 錯誤也要結束「傳送中」狀態，否則狀態列會一直卡住
+        self.emit(T.UI_EVENT, P.ui_status("待機"))
 
     # ── summary_out 處理 ──────────────────────────────────────────────────────
 

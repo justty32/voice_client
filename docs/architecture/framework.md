@@ -30,5 +30,5 @@
 - **純生產者**：不宣告 `consumes`、不呼叫 `start()`，自己的背景執行緒直接 `emit()`。
 - **消費者**：宣告 `consumes` 並覆寫 `handle()`；`start()` 後基底迴圈逐筆處理。
 - **身兼兩者**：在 `handle()` 內 `emit()` 即可（例：CommandRouter 收指令、發控制訊息）。
-- `handle()` 例外不會中斷消費迴圈，錯誤自動轉為 `ui_event` 訊息發布。
+- `handle()` 例外不會中斷消費迴圈：記 log 後交給可覆寫的 `on_handle_error()`，預設發 `ui_event` 系統訊息（含例外文字）。
 - 接線慣例：**所有模組先 `attach(exchange)`，再 `start()`**（註冊非執行緒安全）。

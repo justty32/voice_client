@@ -40,6 +40,7 @@
 | LLM 沒有回應 | 確認 `[LLM] base_url` 對了，本地 Ollama 的話先確認 `ollama serve` 在跑 |
 | LM Studio 沒有回應 | 確認 Local Server 已啟動、`/v1/models` 可連線，且 `model` ID 完全相同 |
 | 手機連不上 | 確認同一個 WiFi；防火牆 `sudo ufw allow 8080`；網址用 `https://` |
+| 手機錄音後出現「[錄音錯誤] …」 | 伺服器缺 `ffmpeg` 或音訊格式無法轉檔；安裝 ffmpeg 後重啟 `mobile_server.py` |
 
 ### 對話資料
 

@@ -1,130 +1,126 @@
 # Voice Client (V-TUI Assistant)
 
-一個整合語音與文字、具備本地小模型輔助、且由使用者完全掌控緩衝區的終端機 AI 客戶端。
+一個語音優先、由使用者完全掌控緩衝區的終端機／手機 AI 客戶端：按鍵說話，本地 Whisper
+把語音轉成文字累積在工作區，你決定什麼時候送給 LLM，回覆可經本地小模型摘要後朗讀。
 
-## 🌟 核心願景
+> **第一次使用？** 從 [入門手冊](docs/tutorial/README.md) 開始，再依需要查
+> [使用手冊](docs/user_manual.md)。
 
-V-TUI Assistant 旨在提供一個高效、直觀的語音優先交互環境。通過整合 STT (語音轉文字)、TTS (文字轉語音) 以及本地 SLM (小語言模型) 的摘要能力，讓用戶能夠通過最自然的語音方式與強大的遠端 LLM 進行深度交流。
+## 🌟 功能
+
+- **本地語音辨識**：`faster-whisper`，離線、可用 GPU；錄音中每次停頓就即時切段辨識。
+- **使用者掌控的工作區**：辨識與打字的文字只進「當前工作區」（`buffer`／`stt`），
+  可編排、匯出入，`/send` 才送出。
+- **LLM 對話**：OpenAI-compatible API（預設本機 LM Studio），或轉發到自架伺服器；多對話管理與持久化。
+- **摘要與朗讀**：長回覆可先經本地 SLM（Ollama）摘要；TTS 預設 Kokoro（本機神經 TTS，中英混合），
+  也可改用 `pyttsx3`。
+- **熱鍵與語音指令**：X11 全域熱鍵、KDE Wayland 全域快捷鍵，或用 F7 說出指令。
+- **手機 Web 模式**：手機瀏覽器錄音、看回覆、瀏覽器朗讀，與桌面共用同一套核心與指令。
 
 ## 🏗️ 系統架構（資料隧道 Data Tunnel）
 
-系統採用「生產者／消費者＋具名通道」的資料隧道架構：所有模組掛在 topic 上，
-資料搬移由單執行緒交換核心（Exchange）統一執行，一次一筆、單點可觀測。
-詳見 [`docs/architecture.md`](docs/architecture.md)。
+所有模組掛在具名通道（topic）上當生產者／消費者，資料搬移由單執行緒交換核心（Exchange）
+統一執行，一次一筆、單點可觀測。詳見 [架構文檔](docs/architecture.md)。
 
-- **入口**：`main.py` → `app.py`，`app.py` 是純接線層（建佇列、掛轉接器、啟動模組），不含業務邏輯。
-- **框架 `core/`**：Message、Outbox／Inbox、Exchange、TunnelModule 與轉接器。
-- **業務模組 `modules/`**：WorkspaceManager（當前工作區）、SttGate（語音指令分流）、CommandRouter（熱鍵／斜線／語音指令）、ChatFlow（對話、摘要、重播）。
-- **既有元件**：錄音、STT（`faster-whisper`）、TTS、摘要、會話管理、TUI、熱鍵與 KDE Wayland 本機控制，經轉接器掛上框架。
+- **入口**：桌面 `main.py` → `app.py`；手機 `mobile_server.py`。兩者都呼叫
+  `app_wiring/assembly.py` 的 `build_core()` 組出同一套核心，手機只把錄音、畫面、朗讀換成 WebSocket 邊緣。
+- **協定 `protocol/`**：topic 名稱、payload 建構函式、指令集的單一來源。
+- **框架 `core/`**：Message、Outbox／Inbox、Exchange、TunnelModule 與轉接器；不含業務邏輯。
+- **業務模組 `modules/`**：WorkspaceManager、SttGate、CommandRouter、ChatFlow、CliTextBridge。
 
-各檔案職責見架構文檔的[新舊模組對照](docs/architecture/migration.md)。
+## 🚀 安裝與啟動
 
-## ⌨️ 控制指南
+需要 Python 3.10+、FFmpeg（手機模式轉檔）、PortAudio（錄音）。Manjaro：
 
-### 全局快捷鍵
-- **F7**: **語音指令模式**。錄音結束後將識別內容解析為斜線指令（如「清空」、「發送」）。
-- **Alt+F8**（KDE Wayland）／**F8**（X11）: **錄音開關**。按一下開始錄音，再按一下停止並辨識。
-- **Alt+F9**（KDE Wayland）／**F9**（X11）: **快速發送**。立即將目前 buffer 送給 LLM。
-- **F10**: **強制停止語音**。立即中斷正在播放的 TTS。
+```bash
+sudo pacman -S --needed python portaudio ffmpeg espeak-ng
+```
 
-### 斜線指令 (Slash Commands)
-在終端輸入框輸入或通過語音指令觸發：
-- `/new [title]`: 新建對話。
-- `/switch [title]`: 切換到指定對話。
-- `/list`: 列出所有對話。
-- `/delete [title]`: 刪除對話。
-- `/save [file]`: 保存對話到文件。
-- `/clear`: 清除 UI 內容。
-- `/clear buffer`: 清除緩衝區內容。
-- `/show`: 查看緩衝區當前積攢的內容。
-- `/stop`: 停止當前語音播放。
-- `/help`: 顯示幫助信息。
-
-## 📱 手機伺服器模式 (Mobile Server Mode)
-
-除了桌面的 TUI 介面，V-TUI Assistant 現在支援**手機 Web 模式**。您可以透過手機瀏覽器連線到電腦運行的伺服器，直接在手機上進行語音對話。
-
-### 核心功能
-- **遠端語音錄製**：使用手機麥克風錄音，伺服器進行 Whisper 識別。
-- **Web 端語音合成**：使用瀏覽器原生的 `SpeechSynthesis` API 播放 AI 回覆。
-- **WebSocket 即時串流**：文字與狀態變更即時同步到手機介面。
-- **SSL 自動生成**：內建自簽章憑證生成邏輯，確保行動裝置瀏覽器能夠調用麥克風（現代瀏覽器要求 HTTPS 才能使用麥克風）。
-
-### 啟動方式
-1. **執行伺服器**：
-   ```bash
-   python mobile_server.py
-   ```
-2. **手機連線**：
-   伺服器啟動時會顯示本機 IP（例如 `https://192.168.1.100:8080`），請確保手機與電腦在同一區域網路下。
-   *注意：由於使用自簽章憑證，手機瀏覽器第一次進入時會顯示安全警告，請點擊「進階」並「繼續前往」。*
-
-### 配置說明 (`config.ini`)
-- **[MOBILE]**:
-    - `host`: 伺服器綁定位址 (預設 `0.0.0.0`)。
-    - `port`: 伺服器埠號 (預設 `8080`)。
-    - `ssl`: 是否啟用 HTTPS (預設 `true`)。**強烈建議開啟**，否則手機瀏覽器通常會因安全性限制而禁用麥克風。
-
-## ⚙️ 配置說明 (`config.ini`)
-
-項目核心行為可通過 `config.ini` 進行高度自定義：
-
-- **[AUDIO]**: 採樣率、靜音檢測閾值、最大錄音時長等。
-- **[STT]**: Whisper 模型大小、運行設備 (cpu/cuda) 等。
-- **[SLM]**: 本地小模型配置，包括 `summary_threshold` (觸發摘要的字數門檻)。
-- **[LLM]**: 核心對話模型配置。
-    - `base_url`: OpenAI-compatible API 端點。預設連到本機 LM Studio
-      `http://localhost:1234/v1`。
-    - `api_key`: API 密鑰。使用外部雲端模型時必填。
-- **[SERVER]**: 網路通訊模式切換（重要）。
-    - `enabled = false` (**直連模式**)：客戶端直接呼叫 `[LLM]` 設定的模型 API。適合 LM Studio、Ollama 或 Gemini。
-    - `enabled = true` (**轉發模式**)：將使用者輸入打包 POST 給 `url` 設定的伺服器。適合需要隱藏 API Key、集中管理歷史記錄或進行複雜邏輯過濾的場景。
-- **[MOBILE]**: 手機網頁伺服器設定（Host, Port, SSL 等）。
-- **[TTS]**: 語音合成引擎設置、語速與音量。
-
-## 🚀 快速開始
-
-1. **環境準備**:
-   - 安裝 Python 3.10+。
-   - 確保已安裝 **FFmpeg** (Whisper 與手機音訊轉換依賴)。
-   - 啟動 LM Studio Local Server，或準備其他 OpenAI-compatible API。
-
-2. **安裝依賴**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **運行程序**:
-   - **桌面 TUI 模式**: `python main.py`、`python app.py` 或 `uv run app.py`
-   - **手機 Web 模式**: `python mobile_server.py`
-
-### Linux 安裝
-
-在 Debian/Ubuntu 系統上，除了 Python 套件還需要下列系統套件：
+Debian／Ubuntu：
 
 ```bash
 sudo apt update
 sudo apt install -y python3-dev portaudio19-dev ffmpeg espeak-ng libssl-dev
 ```
 
-- `portaudio19-dev`：`pyaudio` 編譯依賴。
-- `ffmpeg`：手機模式音訊解碼需要；若只跑 TUI 模式且不用 `mobile_server.py` 可略。
-- `espeak-ng`：使用 `pyttsx3` 後端時需要；預設 Kokoro 不依賴系統 TTS。
+`espeak-ng` 只在 `[TTS] engine = pyttsx3` 時需要。接著安裝 Python 套件：
 
-**熱鍵支援：**
+```bash
+python -m venv .venv
+.venv/bin/pip install -r requirements.txt
+```
 
-- **X11 桌面**：F6–F10 全域熱鍵正常運作。
-- **KDE Plasma + Wayland**：`pynput` 仍不可用，但可由 KDE 捕捉快捷鍵，再呼叫
-  `local_control.py`。目前本機已註冊 **Alt+F8** 錄音與 **Alt+F9** 發送；詳見
-  [`docs/kde_wayland_shortcuts.md`](docs/kde_wayland_shortcuts.md)。
-- **其他 Wayland、SSH / headless**：沒有桌面快捷鍵提供者時，改用斜線指令。
-  TUI 的文字流程不受影響。
+預設 TTS 是 Kokoro，模型檔（約 717 MB）需另外下載到 `models/kokoro/`，見
+[Kokoro 安裝](docs/tts_kokoro_investigation.md)。LLM 預設連本機 LM Studio
+（`http://localhost:1234/v1`），請先啟動其 Local Server。GPU、CUDA 與模型大小見
+[STT 引擎](docs/user_manual/stt.md)；repo 附的 `config.ini` 預設 `large-v3`＋`cuda`，
+沒有 NVIDIA GPU 時請改成 CPU 設定。
+
+啟動：
+
+```bash
+.venv/bin/python main.py         # 桌面 TUI（也可 python app.py 或 uv run app.py）
+.venv/bin/python mobile_server.py  # 手機 Web 模式
+```
+
+狀態列顯示「待機」即就緒。
+
+## ⌨️ 基本操作
+
+| 鍵 | 功能 |
+|---|---|
+| **Alt+F8**（KDE Wayland）／**F8**（X11） | 錄音開關；文字進當前工作區 |
+| **F7** | 語音指令模式：說「發送」就等於 `/send` |
+| **Alt+F9**（KDE Wayland）／**F9**（X11） | 快速發送（等同 `/send`） |
+| **F10** | 停止朗讀 |
+| **F6** | 重播最後一次回覆原文 |
+
+不加斜線直接打字按 Enter，會把文字加入當前工作區。常用斜線指令：`/send` 送出 buffer、
+`/show` 看當前工作區、`/clear` 清空當前工作區、`/ws [名稱]` 切換工作區、
+`/new`／`/switch`／`/list` 管理對話、`/help` 列出全部、`/exit` 離開。
+完整指令表與語音指令關鍵字見 [指令](docs/user_manual/commands.md)。
+
+熱鍵支援依環境而定：X11 上 `pynput` 全域熱鍵可用；KDE Plasma Wayland 由 KDE 全域快捷鍵呼叫
+`local_control.py`（設定見 [KDE Wayland 快捷鍵](docs/kde_wayland_shortcuts.md)）；
+其他 Wayland、SSH／headless 環境改用斜線指令，打字流程不受影響。
+
+## 📱 手機模式
+
+`python mobile_server.py` 啟動後，log 會印出 `https://<本機 IP>:8080`；手機與電腦在同一區域網路下開啟即可。
+預設啟用 HTTPS 並自動產生自簽憑證（手機瀏覽器要 HTTPS 才允許麥克風），第一次連線需接受憑證警告。
+同時只服務最新的一條連線。細節見 [手機模式](docs/user_manual/mobile.md)。
+
+## ⚙️ 設定（`config.ini`）
+
+主要區段：`[AUDIO]` 錄音與切段、`[CONTROL]` 熱鍵、`[STT]` Whisper、`[SLM]` 摘要小模型、
+`[LLM]` 主對話模型、`[SERVER]` 直連／轉發模式、`[TTS]` 語音合成、`[WORKSPACE]` 檔案位置、
+`[LOGGING]`、`[MOBILE]`。每個鍵的意義、預設值與目前未生效的鍵見
+[設定檔速查](docs/user_manual/config.md)。日誌在 `output/system.log`。
+
+## 🗂️ 專案結構
+
+| 路徑 | 內容 |
+|---|---|
+| `main.py`、`app.py` | 桌面入口與接線 |
+| `app_wiring/` | `wire()`、`build_core()`／`Lifecycle`、共用設定解讀 |
+| `protocol/`、`core/`、`modules/` | 協定、隧道框架、業務模組 |
+| `speech/`、`ui/`、`llm/`、`domain/` | 錄音／STT／TTS、終端與熱鍵、LLM I/O、工作區與對話 |
+| `mobile_server.py`、`mobile/`、`static/` | 手機後端、WS 邊緣、前端 |
+| `tests/`、`docs/` | 測試、文件 |
+
+完整地圖見 [INDEX](INDEX.md) 與 [CODE_MAP](workflows/common/code-map/CODE_MAP.md)。
+
+## 📚 文件導航
+
+- 新手第一站：[入門手冊](docs/tutorial/README.md)
+- 使用：[使用手冊](docs/user_manual.md)（安裝、STT、操作、指令、設定、疑難排解、手機）
+- 開發：[架構文檔](docs/architecture.md)、[INDEX](INDEX.md)、[開發環境](workflows/dev-env.md)
+- 調查：[KDE Wayland 快捷鍵](docs/kde_wayland_shortcuts.md)、
+  [TTS／Kokoro](docs/tts_kokoro_investigation.md)、[SenseVoice](docs/sensevoice_investigation.md)
 
 ## 🛠️ 技術棧
-- **STT**: `faster-whisper`
-- **TTS**: `Kokoro ONNX` / `pyttsx3` (桌面離線) / `Web Speech API` (手機)
-- **Web Framework**: `FastAPI` & `Uvicorn`
-- **Audio Processing**: `pydub` (手機錄音轉檔)
-- **SLM/LLM**: LM Studio / Ollama / OpenAI-compatible API
-- **UI**: `rich` (桌面) / `Vanilla JS & CSS` (手機)
-- **Input**: `pynput`（X11 全域熱鍵）／KDE Global Shortcuts + Unix socket（Wayland）
+
+STT `faster-whisper`；TTS `kokoro-onnx`／`pyttsx3`（桌面）、Web Speech API（手機）；
+後端 `FastAPI`＋`Uvicorn`；手機音訊轉檔 `pydub`＋FFmpeg；LLM／SLM 為 LM Studio、Ollama 或任何
+OpenAI-compatible API；UI 為 `rich`（桌面）與原生 JS／CSS（手機）；輸入為 `pynput`（X11）與
+KDE Global Shortcuts＋Unix socket（Wayland）。

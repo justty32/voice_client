@@ -46,12 +46,13 @@
 `VoiceToText`（`speech/voice_to_text.py`）對外契約單純，換引擎**不需動 `app.py` /
 `mobile_server.py` 的接線**：
 
-- 建構：`VoiceToText(config, audio_queue, stt_output_queue)`（`speech/voice_to_text.py:15`）
+- 建構：`VoiceToText(config, audio_queue, stt_output_queue, stt_event_queue=None)`（`speech/voice_to_text.py` 的 `__init__`）
 - 輸入：WAV `BytesIO`，**16kHz / mono / 16-bit**（`config.ini [AUDIO] sample_rate=16000`；
-  mobile 端轉檔見 `mobile_server.py:75-76`）
-- 輸出：純文字 `str`，放進 `stt_output_queue`（`speech/voice_to_text.py:50-52`）
-- 接線點（皆**不需改**）：`app.py:297`（實例化）、`app.py:349/402`（起停）、
-  Exchange 綁定 `app.py:170-171,189`、mobile `mobile_server.py:110,161,167`
+  手機端轉檔見 `mobile/audio.py` 的 `_to_wav()`）
+- 輸出：純文字 `str` 放進 `stt_output_queue`（`stt_text` topic）；每段結局另經 `stt_event_queue`
+  發 `stt_error`／`stt_empty`／`stt_done`（`stt_event` topic，見 `_process_one()`）——新引擎須維持同一語意
+- 接線點（皆**不需改**）：桌面 `app.py:main()` 實例化並登記進 `Lifecycle`；手機 `mobile/state.py:build_mobile_state()`；
+  queue 綁定在 `app_wiring/topology.py:wire()`（`audio_in`、`stt_out`、`stt_event`）
 
 ### 3.2 要做的改動
 
@@ -64,9 +65,8 @@
 | `tests/`（新檔） | 端到端流程測試，仿 `test_voice_flow_integration.py` 的 `FakeLegacyStt` | +20~30 行 |
 | `docs/architecture.md`、`README.md` | 說明引擎切換與安裝 | +15~25 行 |
 
-> 註：本專案目前**沒有**任何「依 config 切換 driver/engine」的前例可抄
-> （TTS 的 `speech/text_to_voice.py` 是依 `sys.platform` 寫死，不是 config 切換）；
-> 這個引擎抽象要新建，會成為日後加引擎的範本。
+> 註：可參考的前例是 TTS：`speech/text_to_voice.py` 依 `[TTS] engine = kokoro | pyttsx3` 選後端
+> （worker 在 `speech/tts/`；pyttsx3 的平台 driver 仍依 `sys.platform` 選）。STT 引擎抽象仍需新建。
 
 ### 3.3 三個必須先處理的坑
 

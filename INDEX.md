@@ -6,15 +6,16 @@ Voice Client 將麥克風、STT、工作區、LLM、摘要、TTS 與桌面／手
 |---|---|
 | `main.py` / `app.py` | 桌面入口與 Data Tunnel 接線 |
 | `core/` | Message、Inbox/Outbox、Exchange、TunnelModule、Adapter |
-| `protocol/` | topic 名稱常數與 payload 建構函式（協定單一來源） |
+| `app_wiring/` | `wire()` 接線、`build_core()`／`Lifecycle` 組裝與啟停、共用設定解讀（桌面與手機共用） |
+| `protocol/` | topic 名稱、payload 建構函式、指令集（協定單一來源） |
 | `modules/` | WorkspaceManager、SttGate、CommandRouter、ChatFlow、CLI bridge |
 | `speech/` | 錄音、STT、TTS 調度與 TTS worker（`speech/tts/`） |
 | `ui/` | 終端輸入、X11 熱鍵、Wayland/KDE 本機控制、Rich 呈現 |
 | `llm/` | LLM HTTP 客戶端、摘要產生器、共用 LLMClient |
 | `domain/` | 工作區資料結構與對話持久化 |
 | `local_control.py` | KDE 快捷鍵用薄 shim，轉呼叫 `ui/local_control.py` |
-| `config.py` / `utils/` | 設定讀取；clipboard、prompt、日誌等共用工具 |
-| `mobile_server.py` / `mobile/` / `static/` | 手機 Web 模式 |
+| `config.py` / `utils/` / `prompts/` | 設定讀取；clipboard、prompt、日誌等共用工具；LLM／SLM 提示詞 |
+| `mobile_server.py` / `mobile/` / `static/` | 手機 Web 模式（共用 `build_core()`，`mobile/` 為 WS 邊緣） |
 | `tests/` | 單元、整合與接線測試 |
 | `server_sample/` | 非產品內容：`SERVER.enabled=true` 模式的測試對端；codemap 排除 |
 | `docs/` | 架構、使用手冊與技術調查 |

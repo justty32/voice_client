@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>卡住了怎麼辦｜Voice Client 入門</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Huninn&family=Noto+Sans+TC:wght@400;600;700&family=JetBrains+Mono:wght@400;700&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="index.html">Voice Client 入門</a><nav class="toc" aria-label="章節"><a href="index.html">開始</a><a href="setup.html">準備</a><a href="talk.html">說話</a><a href="ai.html">寄出</a><a href="commands.html">指令</a><a href="mobile.html">手機</a><a href="help.html" aria-current="page">卡住了</a><a href="inside.html">裡面</a></nav></header>
+<main>
+<section class="ch"><div class="no">第 06 章</div><h1>卡住了怎麼辦</h1><p class="lede">小幫手遇到問題會說出來。先看畫面上的訊息，再對照這一頁。</p></section>
+<h2>按 F8 沒反應</h2>
+<ul>
+<li><b>KDE Wayland</b>：改按 <kbd>Alt</kbd>+<kbd>F8</kbd>。</li>
+<li><b>其他 Wayland、SSH</b>：熱鍵不能用，打字和斜線指令照常。</li>
+<li>出現「錄音錯誤」：麥克風被占用或沒插好。它會自己重試，等待越拉越長，最多 30 秒。</li>
+</ul>
+<h2>說了話卻沒有字</h2>
+<ul>
+<li>出現 <code>[STT 錯誤]</code>：辨識模型多半沒載入成功。沒有 NVIDIA 顯卡就把 <code>[STT] device = cuda</code> 改成 <code>cpu</code>。</li>
+<li>什麼都沒出現、回到「待機」：可能太小聲，被當成沒說話。調低 <code>[AUDIO] silence_threshold</code>。</li>
+</ul>
+<h2>沒有聲音</h2>
+<ul>
+<li>先確認喇叭和音量。</li>
+<li>Kokoro 的模型要放在 <code>models/kokoro</code>；它意外停掉時，小幫手會自動重開一次。</li>
+<li>改用 <code>[TTS] engine = pyttsx3</code> 試試，需先裝 <code>espeak-ng</code>。</li>
+</ul>
+<h2>AI 沒回</h2>
+<p>確認 <code>[LLM] base_url</code> 那個 AI 服務真的開著。</p>
+<h2>對話筆記本不見了</h2>
+<p>存檔壞掉時它<b>不會刪掉</b>，而是改名成 <code>output/.sessions.json.corrupt-時間</code> 備份，再從空白開始。資料可以從備份救回來。</p>
+<p>更多狀況見<a href="../user_manual/troubleshooting.md">使用手冊的疑難排解</a>。</p>
+</main>
+<nav class="pager"><a href="mobile.html"><span>上一章</span>用手機</a><a class="next" href="inside.html"><span>下一章</span>它裡面怎麼運作</a></nav>
+</div>
+</body>
+</html>

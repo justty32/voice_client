@@ -1,0 +1,105 @@
+/* Voice Client 入門手冊 — 一本攤開的圖畫書：窄欄閱讀、插圖撐滿欄寬、章節是真正的順序 */
+:root {
+  --bg: #F2F5F1;        /* 淡鼠尾草紙色 */
+  --surface: #FFFFFF;
+  --ink: #1E2930;
+  --muted: #5B6B70;
+  --line: #D5DDD6;
+  --amber: #C9661A;     /* 錄音指示燈 */
+  --amber-soft: #FBE9D9;
+  --teal: #2B7A6A;
+  --teal-soft: #DDEFEA;
+  --display: "Huninn", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+  --body: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12181B; --surface: #1B2327; --ink: #E5ECE7; --muted: #9AABA8; --line: #2C383C;
+    --amber: #F0954A; --amber-soft: #3A2A1C; --teal: #5BBFA6; --teal-soft: #17302B;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12181B; --surface: #1B2327; --ink: #E5ECE7; --muted: #9AABA8; --line: #2C383C;
+  --amber: #F0954A; --amber-soft: #3A2A1C; --teal: #5BBFA6; --teal-soft: #17302B;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 17px/1.8 var(--body);
+  padding-inline: 16px; padding-block: 0 64px;
+}
+.wrap { max-width: 46rem; margin: 0 auto; }
+
+/* 頂部：書名＋章節目錄 */
+.top {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px;
+  padding-block: 18px; border-bottom: 1px solid var(--line); margin-bottom: 8px;
+}
+.brand { font: 700 18px/1.2 var(--display); color: var(--ink); text-decoration: none; display: flex; align-items: center; gap: 8px; }
+.brand::before { content: ""; width: 12px; height: 12px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 0 4px var(--amber-soft); }
+.toc { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+.toc a {
+  font: 600 13px/1 var(--body); color: var(--muted); text-decoration: none;
+  padding: 7px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface);
+}
+.toc a[aria-current="page"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.toc a:hover { border-color: var(--teal); color: var(--teal); }
+
+/* 章首 */
+.ch { padding-block: 40px 8px; }
+.ch .no { font: 700 14px/1 var(--mono); color: var(--amber); letter-spacing: .08em; }
+h1 { font: 700 clamp(30px, 6vw, 44px)/1.2 var(--display); margin: 10px 0 12px; text-wrap: balance; }
+.lede { font-size: 19px; color: var(--muted); margin: 0; max-width: 36em; }
+h2 { font: 700 24px/1.35 var(--display); margin: 44px 0 10px; text-wrap: balance; }
+p, li { max-width: 38em; }
+ul, ol { padding-left: 1.3em; }
+li + li { margin-top: 4px; }
+a { color: var(--teal); text-underline-offset: 3px; }
+a:focus-visible, button:focus-visible { outline: 3px solid var(--amber); outline-offset: 3px; border-radius: 6px; }
+
+/* 插圖 */
+figure { margin: 24px 0; }
+figure img { display: block; width: 100%; height: auto; border-radius: 18px; }
+figcaption { font-size: 14px; color: var(--muted); margin-top: 8px; }
+
+/* 鍵帽與程式碼 */
+kbd {
+  font: 700 .85em/1 var(--mono); color: var(--ink); background: var(--surface);
+  border: 1px solid var(--line); border-bottom-width: 3px; border-radius: 7px; padding: 3px 7px; white-space: nowrap;
+}
+code { font: .88em var(--mono); background: var(--teal-soft); color: var(--ink); padding: 2px 6px; border-radius: 5px; }
+pre { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; font: 14px/1.6 var(--mono); }
+pre code { background: none; padding: 0; }
+
+/* 小提醒 */
+.tip { background: var(--amber-soft); border-radius: 12px; padding: 12px 16px; margin: 20px 0; }
+.tip strong { color: var(--amber); }
+
+/* 小抄：兩欄卡片 */
+.cheat { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: 10px; margin: 16px 0; }
+.cheat div { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; min-width: 0; }
+.cheat b { display: block; font: 700 15px/1.4 var(--display); }
+.cheat span { font-size: 15px; color: var(--muted); }
+
+/* 狀態列示範（talk 頁） */
+.status { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin: 18px 0; }
+.status output { font: 700 15px/1 var(--mono); padding: 8px 12px; border-radius: 8px; background: var(--teal-soft); color: var(--teal); min-width: 7em; text-align: center; }
+.status output[data-s="rec"] { background: var(--amber-soft); color: var(--amber); }
+.status output[data-s="busy"] { background: var(--line); color: var(--ink); }
+.status button { font: 700 15px/1 var(--mono); padding: 10px 14px; border-radius: 9px; border: 1px solid var(--line); border-bottom-width: 3px; background: var(--bg); color: var(--ink); cursor: pointer; }
+.status small { color: var(--muted); font-size: 14px; flex: 1 1 12rem; }
+
+/* 上下章 */
+.pager { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line); }
+.pager a { font: 700 16px/1.4 var(--display); text-decoration: none; }
+.pager a span { display: block; font: 13px var(--body); color: var(--muted); }
+.pager .next { margin-left: auto; text-align: right; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .status output { transition: background .2s, color .2s; }
+}

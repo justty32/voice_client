@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>寄給 AI、聽它回答｜Voice Client 入門</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Huninn&family=Noto+Sans+TC:wght@400;600;700&family=JetBrains+Mono:wght@400;700&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="index.html">Voice Client 入門</a><nav class="toc" aria-label="章節"><a href="index.html">開始</a><a href="setup.html">準備</a><a href="talk.html">說話</a><a href="ai.html" aria-current="page">寄出</a><a href="commands.html">指令</a><a href="mobile.html">手機</a><a href="help.html">卡住了</a><a href="inside.html">裡面</a></nav></header>
+<main>
+<section class="ch"><div class="no">第 03 章</div><h1>寄給 AI、聽它回答</h1><p class="lede">托盤裡的字準備好就寄出去。AI 回信後，小幫手唸給你聽。</p></section>
+<h2>寄出去</h2>
+<p>按 <kbd>F9</kbd>（KDE Wayland 是 <kbd>Alt</kbd>+<kbd>F9</kbd>）或打 <code>/send</code>。寄件匣會清空，像把信投進郵筒；你的話和 AI 的回信都記進對話紀錄。</p>
+<p class="tip"><strong>小提醒</strong>　只有寄件匣能寄。在草稿匣按寄出，它會提醒你「/send 僅適用於 buffer 工作區」。</p>
+<h2>它會唸給你聽</h2>
+<figure><img src="img/send.svg" alt="寄出後 AI 回信；超過 20 字且開了小助手就先摘要再唸，F6 可聽原文" width="720"></figure>
+<ul>
+<li>回信超過 20 字，而且 <code>[SLM] enabled = true</code>：先請小一點的 AI 寫摘要，唸摘要。</li>
+<li>回信很短，或沒開小助手：直接唸原文。</li>
+<li>想聽完整原文按 <kbd>F6</kbd>；不想聽了按 <kbd>F10</kbd>。</li>
+<li>小助手出錯也不會沉默：畫面顯示「摘要失敗」，改唸原文。</li>
+</ul>
+<h2>換一個嗓音</h2>
+<pre><code>[TTS]
+engine = kokoro          ; 或 pyttsx3（espeak）
+kokoro_voice_zh = zf_001
+kokoro_voice_en = af_heart</code></pre>
+<p>中文和英文會自動分段，各用各的嗓音。</p>
+</main>
+<nav class="pager"><a href="talk.html"><span>上一章</span>說話變文字</a><a class="next" href="commands.html"><span>下一章</span>指令和對話筆記本</a></nav>
+</div>
+</body>
+</html>

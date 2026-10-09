@@ -7,7 +7,8 @@
 Kokoro 已於 2026-06-22 接入桌面 TTS，`config.ini` 預設為 `engine = kokoro`。
 
 - 英文使用 Kokoro v1.0，中文使用專用 v1.1-zh 模型。
-- `speech/text_to_voice.py` 以長駐 worker 載入模型，中英混合文字會分段合成。
+- `speech/text_to_voice.py`（`AudioPriorityPlayer`）調度長駐 worker（`speech/tts/kokoro_worker.py`）載入模型；
+  中英混合文字由 `speech/tts/language.py` 分段合成。worker 意外結束會自動重啟一次。
 - 播放使用 PyAudio，保留 high priority 打斷、F10／`/stop` 與 mute 語意。
 - `pyttsx3` 仍可作 fallback；Linux 使用該後端時才需要 `espeak-ng`。
 
@@ -30,7 +31,7 @@ sudo pacman -S espeak-ng        # extra/espeak-ng 1.52.0 已在官方源
 
 ### 1b. 已在手上：gTTS
 `gtts 2.5.4` 已在 `.venv`，中英文品質好，但**需連網**、每句一次 HTTP 往返、有延遲與隱私考量，
-且目前 `speech/text_to_voice.py` 是 pyttsx3 子進程架構，要接 gTTS 得改播放層（下載 mp3 → 用 pydub/
+且調查當時 TTS 只有 pyttsx3 子進程架構（現為 `speech/text_to_voice.py` 調度＋`speech/tts/` worker），要接 gTTS 得改播放層（下載 mp3 → 用 pydub/
 ffmpeg 播放）。適合「有網路、要好音質、不在意延遲」的場景。
 
 ---
@@ -56,8 +57,9 @@ VIRTUAL_ENV=.venv uv pip install kokoro-onnx soundfile
 # 中文 v1.1 分詞／拼音
 VIRTUAL_ENV=.venv uv pip install "misaki-fork[zh]"
 ```
-下載模型檔（放到專案目錄，例如 `models/`）：
+下載模型檔（本專案預設放 `models/kokoro/`＝`[TTS] kokoro_model_dir`，檔名須與下列一致）：
 ```bash
+mkdir -p models/kokoro && cd models/kokoro
 # 約 300MB；另有量化版 ~80MB
 wget https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx
 wget https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin
@@ -73,15 +75,15 @@ from kokoro_onnx import Kokoro
 from misaki import zh
 
 # 英文
-kokoro = Kokoro("models/kokoro-v1.0.onnx", "models/voices-v1.0.bin")
+kokoro = Kokoro("models/kokoro/kokoro-v1.0.onnx", "models/kokoro/voices-v1.0.bin")
 samples, sr = kokoro.create("Hello, this is a test.", voice="af_heart", lang="en-us")
 sf.write("en.wav", samples, sr)
 # 中文 v1.1 先由 Misaki 轉音素
 g2p = zh.ZHG2P(version="1.1")
 kokoro_zh = Kokoro(
-    "models/kokoro-v1.1-zh.onnx",
-    "models/voices-v1.1-zh.bin",
-    vocab_config="models/config-v1.1-zh.json",
+    "models/kokoro/kokoro-v1.1-zh.onnx",
+    "models/kokoro/voices-v1.1-zh.bin",
+    vocab_config="models/kokoro/config-v1.1-zh.json",
 )
 phonemes, _ = g2p("你好，這是一段測試。")
 samples, sr = kokoro_zh.create(phonemes, voice="zf_001", is_phonemes=True)

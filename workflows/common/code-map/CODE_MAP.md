@@ -60,7 +60,7 @@
 
 測試：`tests/test_command_router_*`、`test_workspace*`、`test_chat_flow*`、
 `test_session_manager.py`、`test_session_io.py`、`test_cli_text_bridge.py`、`test_http_client.py`、`test_summary_generator.py`；
-共用 helper 在 `tests/_*helpers.py`。
+全鏈整合在 `test_command_flow_integration_*`、`test_chat_flow_integration_*`；共用 helper 在 `tests/_*helpers.py`。
 
 ## 介面（`ui/`）
 
@@ -91,5 +91,7 @@
 ## 設定與工具
 
 - `config.py` / `config.ini`：設定讀取與預設值。
-- `utils/`：clipboard、prompt 等共用工具；`utils/logging_setup.py` 為桌面與手機共用日誌設定。
-- 測試：`tests/test_config.py`、`test_llm_client.py`、`test_logging_setup.py`。
+- `utils/`：clipboard、prompt 等共用工具；`utils/prompt_loader.py` 讀 `prompts/*.txt`（LLM 系統提示、SLM 摘要提示）；
+  `utils/logging_setup.py` 為桌面與手機共用日誌設定。
+- `workflows/common/code-map/codemap.py`：本地圖的即時查詢工具（`server_sample/` 排除在外）。
+- 測試：`tests/test_config.py`、`test_llm_client.py`、`test_logging_setup.py`、`test_codemap.py`。

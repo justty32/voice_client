@@ -171,6 +171,16 @@ class TestChatFlowStatusUpdateAndError(unittest.TestCase):
             for m in tts_msgs
         ))
 
+    # ── 測試 9：Error 後狀態列回待機（不卡在「傳送中」）────────────────────
+
+    def test_error_resets_status_to_idle(self):
+        """Error → 最後一則 status 為「待機」。"""
+        cf = ChatFlow(self.sm)
+        cf.handle(inbound("Error", message="連線中斷"))
+        statuses = [m.payload.get("text") for m in drain(cf)
+                    if m.topic == "ui_event" and m.payload.get("type") == "status"]
+        self.assertEqual(statuses[-1:], ["待機"])
+
 
 if __name__ == "__main__":
     unittest.main()

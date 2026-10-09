@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Voice Client 入門手冊</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Huninn&family=Noto+Sans+TC:wght@400;600;700&family=JetBrains+Mono:wght@400;700&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="index.html">Voice Client 入門</a><nav class="toc" aria-label="章節"><a href="index.html" aria-current="page">開始</a><a href="setup.html">準備</a><a href="talk.html">說話</a><a href="ai.html">寄出</a><a href="commands.html">指令</a><a href="mobile.html">手機</a><a href="help.html">卡住了</a><a href="inside.html">裡面</a></nav></header>
+<main>
+<section class="ch"><div class="no">ELI5 · 給完全沒用過的人</div><h1>Voice Client 入門手冊</h1><p class="lede">一個會聽、會寫、會幫你寄信給 AI、還會把回信唸出來的小幫手。十分鐘上手。</p></section>
+<figure><img src="img/overview.svg" alt="一句話的旅程：耳朵、速記員、托盤、寄出、AI 回信、嘴巴" width="720"><figcaption>你說一句話，它會走過這六站。</figcaption></figure>
+<h2>想像一間小辦公室</h2>
+<ul>
+<li><b>耳朵</b>負責聽（錄音）。</li>
+<li><b>速記員</b>把聲音寫成字（語音辨識，STT）。</li>
+<li><b>托盤</b>放著寫好的字，等你決定要不要寄（工作區）。</li>
+<li><b>信差</b>把字寄給 AI（LLM），<b>嘴巴</b>把回信唸出來（語音合成，TTS）。</li>
+</ul>
+<h2>一張小抄</h2>
+<div class="cheat">
+<div><b>說話變文字</b><span>按 <kbd>F8</kbd> 說話，再按 <kbd>F8</kbd></span></div>
+<div><b>寄給 AI</b><span>按 <kbd>F9</kbd>，或打 <code>/send</code></span></div>
+<div><b>別唸了</b><span>按 <kbd>F10</kbd>，或打 <code>/stop</code></span></div>
+<div><b>再聽一次原文</b><span>按 <kbd>F6</kbd></span></div>
+<div><b>看托盤</b><span>打 <code>/show</code></span></div>
+<div><b>忘了指令</b><span>打 <code>/help</code></span></div>
+</div>
+<p>喜歡讀純文字？同一份內容的 markdown 版在 <a href="README.md">README.md</a>；完整細節在<a href="../user_manual.md">使用手冊</a>。</p>
+</main>
+<nav class="pager"><a class="next" href="setup.html"><span>下一章</span>準備與第一次開機</a></nav>
+</div>
+</body>
+</html>

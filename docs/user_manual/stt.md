@@ -29,6 +29,9 @@ model_size = base
 | `large-v3` | 3 GB | 很慢 | 最好（新版） | 需要 GPU |
 | `large-v3-turbo` | 1.6 GB | 快（GPU） | 很好（略低於 v3） | **GPU 推薦，速度／準度最佳平衡** |
 
+> 表中的「預設值」指程式缺鍵時的 fallback；repo 附的 `config.ini` 目前設為 `large-v3`、`device = cuda`、
+> `compute_type = float16`、`language = zh`，沒有 NVIDIA GPU 時請改回 CPU 設定（見 2.3、2.4）。
+
 一般建議：CPU 跑用 `base`（或 `small` 可接受），有 GPU 用 `large-v3-turbo`（快又準、VRAM 省）；要極致準度才用 `large-v3`。
 
 > 想要中文辨識再上一層樓？有個比 Whisper 對中文更準的替代引擎（SenseVoice）調查

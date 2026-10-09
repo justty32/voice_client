@@ -38,3 +38,9 @@
 - 手機遙控桌面同一會話（E§10；前置 P4 fan-out）。
 - `WorkspaceRegistry`：工作區數量／型別可擴充，指令層只對 registry 操作。
 - 小項：錄音裝置選擇＋音量表、`/export md`、TTS 合成快取、串流 STT、每日歸檔（E§12）。
+
+## 設定檔整理
+
+- `config.ini` 有鍵沒被讀取（`[SESSION] auto_save`／`backup_interval`、`[WORKSPACE] output_dir`／`permissions_file`、
+  `[UI] status_refresh_rate`），`[AUDIO] chunk_duration` 讀了沒用：刪除或接回。
+- 程式缺鍵預設與 ini 不一致（`[SLM] enabled`、`[TTS] engine`、`[STT]` 模型／裝置）：統一預設來源。

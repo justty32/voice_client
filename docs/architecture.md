@@ -1,7 +1,7 @@
 # Voice Client 架構文檔
 
-更新日期：2026-06-22
-適用版本：`refactor/data-tunnel` 分支（資料隧道重構**全部完成**，`app.py` 為接線入口）
+更新日期：2026-10-09
+適用版本：`refactor/data-tunnel` 分支（資料隧道重構與 refactor_next **全部完成**；桌面與手機共用 `build_core()`）
 
 ## 1. 總覽
 
@@ -11,7 +11,13 @@ LLM，回覆再經摘要（本地 SLM）與 TTS 朗讀。
 
 系統已完成從「中央路由器」到「**資料隧道（Data Tunnel）**」架構的重構：
 所有模組都是掛在具名通道（topic）上的**生產者／消費者**，資料交換由單執行緒
-交換核心統一執行。`app.py` 是唯一的接線入口（`main.py` 為薄殼，啟動方式不變）。
+交換核心統一執行。桌面入口是 `app.py`（`main.py` 為薄殼）；手機入口 `mobile_server.py`
+與桌面共用同一套核心，只替換邊緣裝置。
+
+- 協定單一來源 `protocol/`：topic 名稱（`topics.py`）、payload 建構函式（`payloads.py`）、指令集（`commands.py`）。
+- 組裝 `app_wiring/`：`topology.py` 的 `wire()` 純接線；`assembly.py` 的 `build_core()` 建 queue、
+  SessionManager、原生模組與 Exchange，`Lifecycle` 統一啟停；`settings.py` 共用設定解讀。
+- 業務模組 `modules/`；legacy 元件依領域分在 `speech/`、`ui/`、`llm/`、`domain/`；手機邊緣在 `mobile/`。
 
 ```
             生產者執行緒                交換核心（單執行緒）            消費者執行緒

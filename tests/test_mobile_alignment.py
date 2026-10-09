@@ -100,7 +100,8 @@ class MobileDesktopAlignmentTest(_MobileBase):
             self.assertEqual(msg, {"type": "message", "role": "system", "text": "[錯誤] 爆了"})
             tts = recv(ws)
             self.assertEqual(tts, {"type": "tts", "text": "發生錯誤：爆了", "priority": "high"})
-            # 不復位狀態（同桌面）：接著送 /show，下一則即其回覆，中間沒有 status
+            # 錯誤後狀態列回待機（同桌面）
+            self.assertEqual(recv(ws), {"type": "status", "text": "待機"})
             self._cmd(ws, "/show")
             nxt = recv(ws)
             self.assertEqual((nxt["type"], nxt["role"]), ("message", "system"))

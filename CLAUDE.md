@@ -33,7 +33,7 @@ Voice Client 是語音優先的終端／手機 AI 客戶端。桌面主線採 Da
 .venv/bin/python -m pytest -q
 ```
 
-目前完整基準為 `445 passed, 49 subtests passed`。需要時再執行：
+目前完整基準為 `446 passed, 49 subtests passed`。需要時再執行：
 
 ```bash
 .venv/bin/python -m unittest discover -s tests

@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>說話變文字｜Voice Client 入門</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Huninn&family=Noto+Sans+TC:wght@400;600;700&family=JetBrains+Mono:wght@400;700&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="index.html">Voice Client 入門</a><nav class="toc" aria-label="章節"><a href="index.html">開始</a><a href="setup.html">準備</a><a href="talk.html" aria-current="page">說話</a><a href="ai.html">寄出</a><a href="commands.html">指令</a><a href="mobile.html">手機</a><a href="help.html">卡住了</a><a href="inside.html">裡面</a></nav></header>
+<main>
+<section class="ch"><div class="no">第 02 章</div><h1>說話變文字</h1><p class="lede">按一下 F8 說話，再按一下，話就變成字，放進托盤裡。</p></section>
+<figure><img src="img/keys.svg" alt="F6 再唸一次、F7 用嘴下指令、F8 錄音開關、F9 馬上寄出、F10 停止朗讀" width="720"></figure>
+<h2>F8：錄音開關</h2>
+<p>按一下開始聽，再按一下停下來寫字。看看狀態列怎麼變：</p>
+<div class="status">
+<output id="st" data-s="idle">待機</output>
+<button type="button" id="f8">F8</button>
+<small id="sthint">按按看：待機 → 錄音中 → 處理中 → 待機</small>
+</div>
+<p class="tip"><strong>小提醒</strong>　KDE Plasma 的 Wayland 桌面要按 <kbd>Alt</kbd>+<kbd>F8</kbd>、<kbd>Alt</kbd>+<kbd>F9</kbd>。Wayland 不讓一般程式聽整個鍵盤，所以改由 KDE 快捷鍵轉告。</p>
+<p>不想說話？直接在輸入框打字按 Enter，效果一樣。開頭是 <code>/</code> 的才算指令。</p>
+<h2>三個托盤</h2>
+<figure><img src="img/trays.svg" alt="三個托盤：buffer 寄件匣、stt 草稿匣、chat 對話紀錄" width="720"><figcaption>字只會掉進「現在這一個」托盤。</figcaption></figure>
+<ul>
+<li><b>buffer 寄件匣</b>：開機就用它，只有它能寄給 AI。</li>
+<li><b>stt 草稿匣</b>：想先存著的話放這。</li>
+<li><b>chat 對話紀錄</b>：你和 AI 說過的話，只能看。</li>
+</ul>
+<p>切換用 <code>/ws stt</code>、<code>/ws buffer</code>；整理用 <code>/show</code>、<code>/del 2</code>、<code>/to_top 3</code>、<code>/concat</code>、<code>/clear</code>。</p>
+<script>
+(function () {
+  var s = [["idle", "待機"], ["rec", "錄音中"], ["busy", "處理中"]], i = 0, t;
+  var o = document.getElementById("st"), b = document.getElementById("f8");
+  b.addEventListener("click", function () {
+    clearTimeout(t);
+    i = i === 0 ? 1 : 2;
+    o.dataset.s = s[i][0]; o.textContent = s[i][1];
+    if (i === 2) t = setTimeout(function () { i = 0; o.dataset.s = "idle"; o.textContent = "待機"; }, 1200);
+  });
+})();
+</script>
+</main>
+<nav class="pager"><a href="setup.html"><span>上一章</span>準備與第一次開機</a><a class="next" href="ai.html"><span>下一章</span>寄給 AI、聽它回答</a></nav>
+</div>
+</body>
+</html>

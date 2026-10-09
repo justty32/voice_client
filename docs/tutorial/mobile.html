@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>用手機｜Voice Client 入門</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Huninn&family=Noto+Sans+TC:wght@400;600;700&family=JetBrains+Mono:wght@400;700&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="index.html">Voice Client 入門</a><nav class="toc" aria-label="章節"><a href="index.html">開始</a><a href="setup.html">準備</a><a href="talk.html">說話</a><a href="ai.html">寄出</a><a href="commands.html">指令</a><a href="mobile.html" aria-current="page">手機</a><a href="help.html">卡住了</a><a href="inside.html">裡面</a></nav></header>
+<main>
+<section class="ch"><div class="no">第 05 章</div><h1>用手機</h1><p class="lede">電腦當大腦，手機當麥克風和螢幕。</p></section>
+<figure><img src="img/mobile.svg" alt="手機瀏覽器上傳錄音給電腦，電腦送回文字、回覆和朗讀" width="720"></figure>
+<h2>怎麼開</h2>
+<ol>
+<li>電腦上執行 <code>.venv/bin/python mobile_server.py</code>。</li>
+<li>終端機會印出網址，像 <code>https://192.168.x.x:8080</code>。</li>
+<li>手機連<b>同一個 WiFi</b>，用瀏覽器打開它。</li>
+<li>看到「連線不安全」：點「進階」→「繼續前往」。憑證是電腦自己簽的。</li>
+</ol>
+<p class="tip"><strong>小提醒</strong>　手機瀏覽器只讓 https 網頁用麥克風，所以 <code>[MOBILE] ssl</code> 請開著。</p>
+<h2>和電腦版一樣</h2>
+<p>同一個大腦：托盤、指令、回覆文字都一樣，說的話只進「現在這一個」托盤。<code>/copy</code>、<code>/paste</code> 用手機的剪貼簿。</p>
+<h2>不一樣的地方</h2>
+<ul>
+<li>沒有 F 鍵，錄音用畫面按鈕，所以沒有「用嘴巴下指令」模式。</li>
+<li>沒有 <code>/exit</code>，手機關不掉電腦上的伺服器。</li>
+<li>一次只服務一個頁面：重新整理或另開分頁，舊頁面會被換掉。</li>
+<li>伺服器關掉時，寄件匣沒寄的字會存成 <code>_buffer_temp.json</code>，用 <code>/import _buffer_temp</code> 拿回來。</li>
+</ul>
+</main>
+<nav class="pager"><a href="commands.html"><span>上一章</span>指令和對話筆記本</a><a class="next" href="help.html"><span>下一章</span>卡住了怎麼辦</a></nav>
+</div>
+</body>
+</html>

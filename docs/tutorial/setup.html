@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>準備與第一次開機｜Voice Client 入門</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Huninn&family=Noto+Sans+TC:wght@400;600;700&family=JetBrains+Mono:wght@400;700&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="index.html">Voice Client 入門</a><nav class="toc" aria-label="章節"><a href="index.html">開始</a><a href="setup.html" aria-current="page">準備</a><a href="talk.html">說話</a><a href="ai.html">寄出</a><a href="commands.html">指令</a><a href="mobile.html">手機</a><a href="help.html">卡住了</a><a href="inside.html">裡面</a></nav></header>
+<main>
+<section class="ch"><div class="no">第 01 章</div><h1>準備與第一次開機</h1><p class="lede">做菜前要先買菜。小幫手也要幾樣工具，還要知道 AI 住在哪。</p></section>
+<h2>先準備三樣東西</h2>
+<ol>
+<li><b>麥克風和喇叭</b>：給耳朵和嘴巴用。</li>
+<li><b>系統套件</b>（Manjaro / Arch）：
+<pre><code>sudo pacman -S --needed python portaudio ffmpeg espeak-ng</code></pre>
+<code>portaudio</code> 讓它能錄音，<code>espeak-ng</code> 讓它能說話，<code>ffmpeg</code> 給手機模式轉換聲音。</li>
+<li><b>Python 套件</b>：
+<pre><code>python -m venv .venv
+.venv/bin/pip install -r requirements.txt</code></pre></li>
+</ol>
+<h2>告訴它 AI 住在哪裡</h2>
+<p>小幫手自己不是 AI，它是<b>寄信給 AI 的信差</b>。打開 <code>config.ini</code>，在 <code>[LLM]</code> 寫上 AI 的地址和名字：</p>
+<pre><code>[LLM]
+model = qwen/qwen3.5-9b
+base_url = http://localhost:1234/v1</code></pre>
+<p class="tip"><strong>小提醒</strong>　用 LM Studio 或 Ollama 在自己電腦跑 AI 時，地址通常是 <code>http://localhost:…</code>。第一次只要改這一段，其他都有預設值。</p>
+<h2>第一次開機</h2>
+<pre><code>.venv/bin/python main.py</code></pre>
+<p>狀態列出現「<b>待機</b>」就準備好了。第一次比較慢，因為速記員要先「讀書」：把語音辨識模型載入記憶體。</p>
+<p>要離開時打 <code>/exit</code>，它會把每個房間的燈關好再走。</p>
+</main>
+<nav class="pager"><a href="index.html"><span>上一章</span>Voice Client 入門手冊</a><a class="next" href="talk.html"><span>下一章</span>說話變文字</a></nav>
+</div>
+</body>
+</html>

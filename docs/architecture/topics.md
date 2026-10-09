@@ -14,13 +14,17 @@ topic 名稱常數在 [`protocol/topics.py`](../../protocol/topics.py)，payload
 
 | topic | 生產者 | 消費者 | payload |
 |---|---|---|---|
-| `audio` | Recorder | STT | numpy 音訊陣列 |
+| `audio` | Recorder | STT | WAV `BytesIO`（16 kHz mono） |
 | `stt_text` | STT | SttGate（依模式分流） | 辨識文字 `str` |
 | `raw_text` | SttGate（normal 模式）、CliTextBridge（終端文字） | WorkspaceManager（塞進**當前**工作區） | 文字 `str` |
 | `commands` | 終端指令、SttGate（command 模式）、熱鍵 | CommandRouter | `P.command()`；熱鍵為裸字串（`RECORD_TOGGLE`…）；cmd 集合見 `protocol/commands.py` |
 | `cli_text` | 終端文字 | CliTextBridge（EXIT 攔截＋顯示＋轉 raw_text） | 文字 `str`（`__EXIT__` 為 EOF） |
-| `recorder_event` | Recorder（事件） | CommandRouter（狀態列／錯誤復原） | `P.recorder_event()`；`recording_stopped` 帶 `flushed: bool`（False＝無音訊送 STT，狀態列回待機） |
+| `recorder_event` | Recorder（事件） | CommandRouter（狀態列／錯誤復原） | `P.recorder_event()`（事件種類見表下） |
 | `stt_event` | STT（處理結果） | CommandRouter（錯誤訊息＋狀態列回待機） | `P.stt_event()`：`stt_error`（帶 `message`）／`stt_empty`／`stt_done` |
+
+`recorder_event` 的 `event` 有 `recording_started`、`chunk_flushed`（錄音中靜音切片送出一段）、
+`recording_stopped`（帶 `flushed: bool`，False＝無音訊送 STT、狀態列直接回待機）、`error`（帶 `message`）。
+`audio` 的 WAV 在桌面由 Recorder 產生，手機由 `mobile/audio.py` 以 pydub 轉檔。
 
 ### 控制
 

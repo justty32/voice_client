@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>指令和對話筆記本｜Voice Client 入門</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Huninn&family=Noto+Sans+TC:wght@400;600;700&family=JetBrains+Mono:wght@400;700&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="index.html">Voice Client 入門</a><nav class="toc" aria-label="章節"><a href="index.html">開始</a><a href="setup.html">準備</a><a href="talk.html">說話</a><a href="ai.html">寄出</a><a href="commands.html" aria-current="page">指令</a><a href="mobile.html">手機</a><a href="help.html">卡住了</a><a href="inside.html">裡面</a></nav></header>
+<main>
+<section class="ch"><div class="no">第 04 章</div><h1>指令和對話筆記本</h1><p class="lede">打字下命令、用嘴巴下命令，還能把對話分成好幾本筆記本。</p></section>
+<h2>斜線指令</h2>
+<p>打 <code>/</code> 開頭就是下命令，忘了就打 <code>/help</code>。</p>
+<div class="cheat">
+<div><b><code>/copy</code>　<code>/paste</code></b><span>托盤和剪貼簿互通，貼上時一行一段</span></div>
+<div><b><code>/export 名</code>　<code>/import 名</code></b><span>把托盤存成檔案、再讀回來</span></div>
+<div><b><code>/clear ui</code></b><span>只清畫面，托盤不動</span></div>
+</div>
+<p>完整清單在<a href="../user_manual/commands.md">使用手冊的指令章</a>。</p>
+<h2>用嘴巴下指令：F7</h2>
+<p>按 <kbd>F7</kbd>，說「發送」，再按 <kbd>F7</kbd>。小幫手聽懂「發送」就是 <code>/send</code>。
+「清除」「顯示」「停止」「複製」「切換」都聽得懂，說英文 send、clear 也行。</p>
+<h2>對話筆記本</h2>
+<p>對話可以分成好幾本，一本聊工作、一本聊旅行，每本都自動存檔。</p>
+<div class="cheat">
+<div><b><code>/new 旅行</code></b><span>開新的一本；不取名就叫 session_1、session_2…</span></div>
+<div><b><code>/switch 旅行</code></b><span>翻到那一本</span></div>
+<div><b><code>/list</code></b><span>看有哪幾本</span></div>
+<div><b><code>/history</code></b><span>看這本寫過什麼</span></div>
+</div>
+<p class="tip"><strong>小提醒</strong>　名字重複時會說「對話已存在」，<b>不會</b>蓋掉舊的那本，要翻過去請用 <code>/switch</code>。</p>
+</main>
+<nav class="pager"><a href="ai.html"><span>上一章</span>寄給 AI、聽它回答</a><a class="next" href="mobile.html"><span>下一章</span>用手機</a></nav>
+</div>
+</body>
+</html>

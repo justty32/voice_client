@@ -56,25 +56,27 @@
 
 按 F7 開始錄音、再按 F7 停止，辨識到的文字不會進工作區，而是被解析成指令。
 
-支援的關鍵字（說中文或英文都可以）：
+支援的關鍵字（說中文或英文都可以；句中含關鍵字即命中，多個命中時依程式內固定順序取第一個，
+如「新建」優先於其他）。參數以空白分詞：`/new`、`/switch` 取第一個詞之後的詞；`/delete`、`/save`、`/export`、`/import`、
+`/ws` 取含關鍵字那個詞之後的詞（中文連著說沒有空白時就沒有參數）。認不出時顯示「無法識別的語音指令」：
 
 | 說出來的話 | 對應指令 |
 |---|---|
 | 發送、傳送、send | `/send` |
-| 清除、clear | `/clear` |
+| 清除、clear | `/clear`（另含「暫存／buffer」→ `/clear buffer`；含「畫面／螢幕／ui／screen」→ `/clear ui`） |
 | 顯示、show | `/show` |
 | 停止、stop | `/stop` |
 | 工作區、workspace | `/ws` |
 | 新建、開啟對話、new | `/new` |
 | 切換、switch | `/switch` |
-| 列表、list | `/list` |
+| 列表、清單、list | `/list` |
 | 刪除、delete | `/delete` |
 | 保存、儲存、save | `/save` |
-| 歷史、紀錄、history | `/history` |
+| 歷史、紀錄、記錄、history | `/history` |
 | 複製、copy | `/copy` |
 | 貼上、paste | `/paste` |
 | 壓縮、連接、concat | `/concat` |
-| 置頂、to top | `/to_top` |
+| 置頂、移至最前、to top | `/to_top` |
 | 匯出、export | `/export` |
 | 匯入、import | `/import` |
-| 幫助、說明、help | `/help` |
+| 幫助、說明、指令、help | `/help` |

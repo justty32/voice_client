@@ -12,7 +12,7 @@ sudo pacman -S --needed python portaudio ffmpeg espeak-ng
 
 - `portaudio`：pyaudio 錄音依賴
 - `ffmpeg`：手機模式音訊轉檔（只跑桌面 TUI 可略）
-- `espeak-ng`：Linux 上的 TTS 朗讀後端
+- `espeak-ng`：`[TTS] engine = pyttsx3` 時的 Linux 朗讀後端；預設 Kokoro 不需要（英文詞表外字詞可作後援）
 
 ### 1.2 Python 套件
 
@@ -32,6 +32,9 @@ pip install torch torchvision torchaudio --index-url https://download.pytorch.or
 # 再裝 faster-whisper
 pip install faster-whisper
 ```
+
+預設 TTS 是 Kokoro，模型檔（約 717 MB）不在 repo 內，需自行下載到 `models/kokoro/`，
+步驟見 [TTS 調查與 Kokoro 安裝](../tts_kokoro_investigation.md) §2a。
 
 ### 1.3 熱鍵支援
 

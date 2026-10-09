@@ -11,12 +11,14 @@
 - 業務模組測試：`tests/test_workspace_manager.py`、`test_stt_gate.py`、
   `test_command_router_*.py`（熱鍵、狀態事件、工作區、剪貼簿、對話、語音）、
   `test_chat_flow_reply.py`、`test_chat_flow_summary.py`、`test_cli_text_bridge.py`
-- 領域資料結構測試：`tests/test_workspace*.py`、`test_session_manager.py`、`test_session_io.py`
+- 領域資料結構測試：`tests/test_workspace*.py`（含 `test_workspace_concurrency.py` 鎖與 `drain()`）、`test_session_manager.py`、`test_session_io.py`
 - 共用 helper（`_` 開頭，不被收集）：`tests/_helpers.py`、`_router_helpers.py`、`_chat_flow_helpers.py`
 - 工具測試：`tests/test_codemap.py`
-- 協定契約測試：`tests/test_protocol_contract.py`（`protocol.topics.ALL`＝`wire()` 路由＝codemap 掃描＝`topics.md` 表，生產者逐 topic 比對）、`test_protocol_literals.py`（產品碼不得用 topic 字面字串）
+
+協定契約測試：`tests/test_protocol_contract.py`（`protocol.topics.ALL`＝`wire()` 路由＝codemap 掃描＝`topics.md` 表，生產者逐 topic 比對）、`test_protocol_literals.py`（產品碼不得用 topic 字面字串）、`test_protocol_commands.py`（`SLASH_COMMANDS`＝派發表鍵＝`/help`＝使用手冊 §6 指令表）
 
 I/O 層測試（全部 mock，不碰網路、stdin 或 LLM 伺服器）：`tests/test_http_client.py`、`test_summary_generator.py`、`test_terminal_input.py`、`test_llm_client.py`、`test_config.py`、`test_logging_setup.py`。
+語音 I/O：`tests/test_record.py`、`test_voice_to_text.py`、`test_text_to_voice.py`（以 mock 取代 PyAudio／Whisper／TTS 後端）。
 
 ### 接線與整合測試
 
@@ -33,3 +35,4 @@ I/O 層測試（全部 mock，不碰網路、stdin 或 LLM 伺服器）：`tests
 ### 執行方式
 
 - 執行：`.venv/bin/python -m pytest -q`（測試以 unittest 撰寫，`python -m unittest discover -s tests` 亦可）
+- 目前基準（2026-10-09）：`446 passed, 49 subtests passed`；缺 fastapi／httpx 的環境手機測試會 skip

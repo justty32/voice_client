@@ -6,8 +6,8 @@
 
 **長駐執行緒**：每個業務模組（錄音、STT、TTS、HTTP…）一條；Exchange 一條；
 全部 daemon。`TunnelModule`／`Exchange` 的 `stop()` 會 `join(timeout=2)`；
-legacy 模組的 `stop()` 翻旗標後 `join(timeout=1)`（`TerminalInput` 除外：阻塞在 `input()`，
-無法喚醒，靠 daemon 隨行程結束）；停機不 drain。
+legacy 模組的 `stop()` 翻旗標後 `join(timeout=1)`（`LocalControl` 為 0.5 秒；`KeyboardListener`
+只停 pynput listener；`TerminalInput` 不 join：阻塞在 `input()` 無法喚醒，靠 daemon 隨行程結束）；停機不 drain。
 
 **本機控制**：`LocalControl` 綁定 `$XDG_RUNTIME_DIR/voice-client-control.sock`
 （權限 `0600`），只接受固定命令白名單。KDE 快捷鍵啟動短命 helper，透過
@@ -25,6 +25,8 @@ Unix datagram 將 `RECORD_TOGGLE` 送入與 `KeyboardListener` 共用的命令 q
 **啟停**：`app.py:main()` 把所有元件登記進同一個 `Lifecycle`（`app_wiring/assembly.py`），
 順序為 9 個 legacy → 5 個原生 → Exchange；`start_all()` 依此順序啟動。關機時先送 `TTS_TERMINATE`，
 再 `stop_all()` 以相同正序停止（模組先停、Exchange 最後），個別 `stop()` 例外只記 log、其餘照停。
+手機入口（`mobile/state.py`）同樣用 `Lifecycle`：3 個 legacy（VoiceToText、SummaryGenerator、HttpClient）
+→ 5 個原生 → Exchange，由 FastAPI lifespan 啟停；停機後 buffer 非空則匯出 `_buffer_temp.json`。
 
 ### 錯誤策略（閉環）
 
