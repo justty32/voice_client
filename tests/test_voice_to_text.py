@@ -12,7 +12,7 @@ from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from voice_to_text import VoiceToText
+from speech.voice_to_text import VoiceToText
 
 
 def make_config(language: str, initial_prompt: str | None = None) -> configparser.ConfigParser:

@@ -20,7 +20,7 @@ from app_wiring.assembly import LEGACY_QUEUE_KEYS, NATIVE_KEYS, CoreParts, build
 from app_wiring.settings import ensure_default_session, export_dir_from, slm_settings
 from core.exchange import Exchange
 from protocol import topics as T
-from session_manager import SessionManager
+from domain.session_manager import SessionManager
 
 
 def _make_config(tmp: str) -> configparser.ConfigParser:
@@ -111,8 +111,8 @@ class TestBuildCore(unittest.TestCase):
                 "deleted_sessions_dir": {os.path.join(self._tmp, "d")!r},
             }}
             build_core(cfg)
-            heavy = ("record", "http_client", "voice_to_text", "text_to_voice",
-                     "summary_generator", "keyboard_listener", "pyaudio", "requests")
+            heavy = ("speech.record", "llm.http_client", "speech.voice_to_text", "speech.text_to_voice",
+                     "llm.summary_generator", "ui.keyboard_listener", "pyaudio", "requests")
             print(",".join(m for m in heavy if m in sys.modules))
         """)
         out = subprocess.run([sys.executable, "-c", code], capture_output=True,

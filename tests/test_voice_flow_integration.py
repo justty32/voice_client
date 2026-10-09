@@ -2,7 +2,7 @@
 
 驗證階段②目標：Recorder →audio→ STT →raw_text→ 當前工作區，
 其中「Recorder」「STT」用與既有模組相同的介面形態（裸 queue.Queue），
-完全不依賴 record.py / voice_to_text.py 的硬體與模型。
+完全不依賴 speech/record.py / speech/voice_to_text.py 的硬體與模型。
 
 執行：python3 -m unittest tests.test_voice_flow_integration
 """
@@ -22,7 +22,7 @@ from modules.workspace_manager import WorkspaceManager
 
 
 class FakeLegacyStt:
-    """形態同 voice_to_text.VoiceToText：裸輸入/輸出 queue＋自有工作執行緒。"""
+    """形態同 speech.voice_to_text.VoiceToText：裸輸入/輸出 queue＋自有工作執行緒。"""
 
     def __init__(self, audio_queue: queue.Queue, text_queue: queue.Queue):
         self._audio_queue = audio_queue

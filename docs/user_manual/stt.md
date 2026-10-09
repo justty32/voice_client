@@ -49,7 +49,7 @@ GPU 跑時速度可快 5–10 倍。如果 `nvidia-smi` 有輸出、CTranslate2 
 > ```bash
 > pip install nvidia-cublas-cu12      # 或 uv pip install --python .venv/bin/python nvidia-cublas-cu12
 > ```
-> 裝好後 `voice_to_text.py` 啟動時會自動預載它，無需設 `LD_LIBRARY_PATH`。
+> 裝好後 `speech/voice_to_text.py` 啟動時會自動預載它，無需設 `LD_LIBRARY_PATH`。
 
 ### 2.4 compute_type（精度／速度權衡）
 

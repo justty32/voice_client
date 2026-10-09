@@ -1,5 +1,5 @@
 """
-workspace.py — 統一的工作區抽象。
+domain/workspace.py — 統一的工作區抽象。
 
 一個 Workspace 是「有序的 entry 清單」，每個 entry 是「字串清單」（即 List[List[str]]）。
 系統的三個工作區共用這個抽象與其 CRUD 操作：

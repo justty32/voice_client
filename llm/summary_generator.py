@@ -3,7 +3,7 @@ import logging
 import threading
 from queue import Empty, Queue
 
-from utils.llm_client import LLMClient
+from llm.llm_client import LLMClient
 from utils.prompt_loader import load_prompt
 
 log = logging.getLogger(__name__)

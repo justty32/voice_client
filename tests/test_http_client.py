@@ -16,7 +16,7 @@ from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from http_client import HttpClient
+from llm.http_client import HttpClient
 
 
 class _FakeSessionManager:
@@ -91,8 +91,8 @@ class TestDispatch(HttpClientTestBase):
 class TestPostHttp(HttpClientTestBase):
     def test_retries_then_returns_error_and_backs_up_payload(self):
         client = self.make_client(enabled=True, retry=2)
-        with mock.patch("http_client.requests.post", side_effect=ConnectionError("拒絕連線")) as post, \
-                mock.patch("http_client.time.sleep"):
+        with mock.patch("llm.http_client.requests.post", side_effect=ConnectionError("拒絕連線")) as post, \
+                mock.patch("llm.http_client.time.sleep"):
             result = client._post_http({"Title": "t", "Content": "hi"})
         self.assertEqual(post.call_count, 3)  # retry + 1
         self.assertEqual(result["type"], "Error")
@@ -103,7 +103,7 @@ class TestPostHttp(HttpClientTestBase):
         client = self.make_client(enabled=True)
         resp = mock.Mock()
         resp.json.return_value = {"type": "ChatReply", "Content": {"full_response": "ok"}}
-        with mock.patch("http_client.requests.post", return_value=resp) as post:
+        with mock.patch("llm.http_client.requests.post", return_value=resp) as post:
             result = client._dispatch({"Title": "t", "Content": "hi"})
         self.assertEqual(post.call_count, 1)
         self.assertEqual(result, {"type": "ChatReply", "Content": {"full_response": "ok"}})

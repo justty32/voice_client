@@ -8,7 +8,7 @@ CommandRouter 在階段③接上 /ws 指令）。
 from core.message import Message
 from core.module import TunnelModule
 from protocol import topics as T
-from workspace import Workspace
+from domain.workspace import Workspace
 
 
 class WorkspaceManager(TunnelModule):

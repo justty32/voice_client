@@ -3,7 +3,7 @@
 消費 commands 通道，統一處理熱鍵訊號、終端斜線指令與語音指令；
 另消費 recorder_event、stt_event 以維護錄音／STT 狀態列。
 熱鍵的舊字串訊號（"RECORD_TOGGLE" 等）在 handle() 內正規化為指令 dict，
-keyboard_listener.py 毋須修改。
+ui/keyboard_listener.py 毋須修改。
 
 各指令領域的實作位於 modules.command_handlers；本模組保留公開入口、
 派發表（_build_handlers，指令集見 protocol/commands.py）及錄音／播放控制。

@@ -4,7 +4,7 @@
 透過共享取消編號（cancel_through）中斷播放。
 """
 
-from tts.language import _split_language_runs
+from speech.tts.language import _split_language_runs
 
 
 def _kokoro_worker(

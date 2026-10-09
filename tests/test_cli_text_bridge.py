@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.message import Message
 from modules.cli_text_bridge import CliTextBridge
-from terminal_input import EXIT_SIGNAL
+from ui.terminal_input import EXIT_SIGNAL
 
 
 class TestCliTextBridge(unittest.TestCase):

@@ -5,12 +5,12 @@
 ## 背景
 
 Wayland 不允許一般程式像 X11 一樣監聽所有鍵盤輸入，因此
-`keyboard_listener.py` 使用的 `pynput` 在 Wayland 下會停用。KDE/KWin 本身可以
+`ui/keyboard_listener.py` 使用的 `pynput` 在 Wayland 下會停用。KDE/KWin 本身可以
 安全地捕捉全域快捷鍵，所以 Voice Client 採用以下路徑：
 
 ```text
 KDE Global Shortcuts
-  → 啟動短命 local_control.py helper
+  → 啟動短命 local_control.py helper（根層薄 shim → ui/local_control.py）
   → $XDG_RUNTIME_DIR/voice-client-control.sock
   → key_signal_queue
   → commands topic
@@ -40,6 +40,9 @@ KDE Global Shortcuts
 
 未知命令會被拒絕，不會執行 shell。相同命令在 0.5 秒內重複抵達時會被去抖，
 避免桌面啟動動作造成一次按鍵切換兩次。
+
+實作在 `ui/local_control.py`。根層 `local_control.py` 是薄 shim：把專案根放進 `sys.path`
+後轉呼叫 `ui.local_control.main`，所以 `.desktop` 的絕對路徑可維持不變、從任意 cwd 執行。
 
 ## 目前這台電腦的 Alt+F8／Alt+F9 設定
 
@@ -132,7 +135,7 @@ tail -f output/system.log
 正常觸發會看到：
 
 ```text
-local_control: 收到本機控制命令：RECORD_TOGGLE
+ui.local_control: 收到本機控制命令：RECORD_TOGGLE
 ```
 
 確認 KDE 已註冊動作：

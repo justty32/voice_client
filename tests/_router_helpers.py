@@ -1,6 +1,6 @@
 """CommandRouter 單元測試共用工具（非測試模組）。
 
-用法：from tests._router_helpers import make_router, cmd, voice, ui_texts
+用法：from tests._router_helpers import make_router, make_bare_router, cmd, voice, ui_texts
 """
 
 import os
@@ -21,6 +21,13 @@ def make_router(tmp: str, sm=None) -> tuple:
         sm = make_sm(tmp)
     router = CommandRouter(workspace_manager=wm, session_manager=sm, export_dir=tmp)
     return router, wm, sm
+
+
+def make_bare_router():
+    """回傳無 SessionManager 的 CommandRouter（熱鍵與狀態事件測試用）。"""
+    wm = WorkspaceManager()
+    router = CommandRouter(workspace_manager=wm, session_manager=None)
+    return router
 
 
 def cmd(router, cmd_str: str, args: list = None):

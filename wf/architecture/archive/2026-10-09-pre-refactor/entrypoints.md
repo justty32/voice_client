@@ -1,3 +1,5 @@
+> 封存 2026-10-09，由 docs/architecture.md 與 workflows/common/code-map/CODE_MAP.md 取代（重構前快照，refactor_next 已落地）
+
 # 兩條入口的分歧：桌面 vs 手機
 
 [入口](README.md)

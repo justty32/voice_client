@@ -22,7 +22,7 @@ from tests._helpers import make_sm, wait_until
 
 
 class FakeLegacySummarizer(threading.Thread):
-    """形態同 summary_generator.SummaryGenerator：裸 summary_queue→output_queue＋自有執行緒。
+    """形態同 llm.summary_generator.SummaryGenerator：裸 summary_queue→output_queue＋自有執行緒。
 
     讀取 {"cmd":"summary","text":...} → 輸出 {"type":"summary","text":"摘"}。
     """

@@ -8,7 +8,7 @@ from queue import Empty, Queue
 
 import requests
 
-from utils.llm_client import LLMClient
+from llm.llm_client import LLMClient
 from utils.prompt_loader import load_prompt
 
 log = logging.getLogger(__name__)
@@ -85,7 +85,7 @@ class HttpClient:
     def _post_http(self, payload: dict) -> dict | None:
         last_exc = None
         # retry 代表「首次嘗試之外的重試次數」，故總嘗試數為 retry + 1。
-        # （與 utils.llm_client 的 range(max_retries + 1) 語意一致，避免 retry=0 時一次都不送出。）
+        # （與 llm.llm_client 的 range(max_retries + 1) 語意一致，避免 retry=0 時一次都不送出。）
         total_attempts = self._retry + 1
         for attempt in range(total_attempts):
             try:

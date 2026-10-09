@@ -44,15 +44,15 @@ def main():
       7. finally 統一停機（TERMINATE → Lifecycle 正序 stop）
     """
     # 硬體／IO 模組延遲匯入（測試環境不需要這些相依性）
-    from http_client import HttpClient
-    from keyboard_listener import KeyboardListener
-    from local_control import LocalControl
-    from record import Recorder
-    from summary_generator import SummaryGenerator
-    from terminal_input import TerminalInput
-    from text_to_voice import AudioPriorityPlayer
-    from tui_renderer import TuiRenderer, UiEvent
-    from voice_to_text import VoiceToText
+    from llm.http_client import HttpClient
+    from ui.keyboard_listener import KeyboardListener
+    from ui.local_control import LocalControl
+    from speech.record import Recorder
+    from llm.summary_generator import SummaryGenerator
+    from ui.terminal_input import TerminalInput
+    from speech.text_to_voice import AudioPriorityPlayer
+    from ui.tui_renderer import TuiRenderer, UiEvent
+    from speech.voice_to_text import VoiceToText
 
     config = load_config()
     _setup_logging(config)

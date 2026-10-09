@@ -17,11 +17,11 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from app_wiring.assembly import CoreParts, Lifecycle, build_core
-from http_client import HttpClient
+from llm.http_client import HttpClient
 from mobile.edge import BrowserClipboard, EdgeSink, discard, tts_cmd_to_ws, tts_to_ws, ui_event_to_ws
-from summary_generator import SummaryGenerator
+from llm.summary_generator import SummaryGenerator
 from utils.logging_setup import setup_logging as _setup_logging
-from voice_to_text import VoiceToText
+from speech.voice_to_text import VoiceToText
 
 log = logging.getLogger("mobile_server")
 

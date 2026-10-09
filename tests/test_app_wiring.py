@@ -20,7 +20,7 @@ from app import _dict_to_ui_event
 from app_wiring.assembly import build_core
 from core.exchange import Exchange
 from core.endpoint import Inbox
-from session_manager import SessionManager
+from domain.session_manager import SessionManager
 
 # UiEvent 延遲匯入（tui_renderer 依賴 rich，測試環境可能未安裝）；
 # 測試中以屬性驗證替代 isinstance 檢查。
@@ -31,7 +31,7 @@ def _get_ui_event_class():
     global _UiEvent
     if _UiEvent is None:
         try:
-            from tui_renderer import UiEvent
+            from ui.tui_renderer import UiEvent
             _UiEvent = UiEvent
         except ImportError:
             pass

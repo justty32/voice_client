@@ -1,6 +1,6 @@
 from queue import Empty, Queue
 
-import local_control
+from ui import local_control
 
 
 def test_local_control_forwards_allowed_command(tmp_path, monkeypatch):
@@ -74,3 +74,21 @@ def test_loop_returns_when_socket_already_closed(tmp_path, monkeypatch):
     control._socket = None
 
     control._loop()  # 不得拋例外
+
+
+def test_main_requires_exactly_one_command(capsys):
+    assert local_control.main(["local_control.py"]) == 2
+    assert "Usage:" in capsys.readouterr().err
+
+
+def test_root_shim_runs_from_any_cwd(tmp_path):
+    """KDE .desktop 以絕對路徑執行根層 local_control.py；從其他 cwd 也必須能匯入 ui.local_control。"""
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    shim = Path(__file__).resolve().parents[1] / "local_control.py"
+    out = subprocess.run([sys.executable, str(shim), "NOT_A_COMMAND"], cwd=tmp_path,
+                         capture_output=True, text=True, timeout=30)
+    assert out.returncode == 2
+    assert "Unsupported Voice Client command" in out.stderr

@@ -7,7 +7,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from workspace import Workspace
+from domain.workspace import Workspace
 
 
 class TestWorkspaceCRUD(unittest.TestCase):

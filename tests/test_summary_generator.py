@@ -14,7 +14,7 @@ from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from summary_generator import SummaryGenerator
+from llm.summary_generator import SummaryGenerator
 
 
 def _make_config(enabled: bool = True) -> configparser.ConfigParser:

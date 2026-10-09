@@ -14,7 +14,7 @@ from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from session_manager import SessionManager
+from domain.session_manager import SessionManager
 
 
 def make_config(tmp: str) -> configparser.ConfigParser:
@@ -248,7 +248,7 @@ class TestThreadSafetyAndPersistence(SessionManagerTestBase):
             calls.append((src, dst))
             return real_replace(src, dst)
 
-        with mock.patch("session_manager.os.replace", side_effect=spy):
+        with mock.patch("domain.session_manager.os.replace", side_effect=spy):
             sm.new_session("a")
         self.assertIn((f"{self.sessions_file}.tmp", self.sessions_file), calls)
 
@@ -256,7 +256,7 @@ class TestThreadSafetyAndPersistence(SessionManagerTestBase):
         os.makedirs(os.path.dirname(self.sessions_file), exist_ok=True)
         with open(self.sessions_file, "w", encoding="utf-8") as f:
             f.write("garbage")
-        with self.assertLogs("session_manager", level="ERROR"):
+        with self.assertLogs("domain.session_manager", level="ERROR"):
             sm = SessionManager(self.cfg)
         self.assertEqual(sm.list_sessions(), [])
         names = os.listdir(os.path.dirname(self.sessions_file))

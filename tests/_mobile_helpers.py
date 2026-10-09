@@ -1,13 +1,16 @@
 """手機伺服器測試共用工具（非測試模組；檔名以底線開頭，不會被 discover 收集）。
 
 替身元件與 `make_state()` 位於 `tests/_mobile_fakes.py`（不需 fastapi，於此 re-export）；
-本檔另提供帶逾時的 WebSocket 收訊輔助。需要 fastapi（TestClient 另需 httpx）。
+本檔另提供帶逾時的 WebSocket 收訊輔助與 TestClient 測試基底 `MobileBase`。需要 fastapi（TestClient 另需 httpx）。
 """
 
+import contextlib
 import json
 import os
 import sys
+import tempfile
 import time
+import unittest
 import warnings
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -20,6 +23,8 @@ with warnings.catch_warnings():
     warnings.simplefilter("ignore")
     from fastapi.testclient import TestClient  # noqa: E402,F401
 
+from mobile_server import create_app  # noqa: E402
+from tests._helpers import wait_until  # noqa: E402
 from tests._mobile_fakes import (  # noqa: E402,F401  re-export
     FakeHttpClient,
     FakeSummary,
@@ -66,3 +71,33 @@ def is_type(t: str, **fields):
         return m.get("type") == t and all(m.get(k) == v for k, v in fields.items())
 
     return _pred
+
+
+class MobileBase(unittest.TestCase):
+    """共用 setUp／連線 helper；本身沒有測試（自 tests/test_mobile_server.py 抽出）。"""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.state = make_state(self._tmp.name)
+        self.app = create_app(self.state, static_dir=STATIC_DIR)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    @contextlib.contextmanager
+    def _client(self):
+        """TestClient＋ExitStack；WS 連線必須在 TestClient 關閉（lifespan 結束）前先關。"""
+        with TestClient(self.app) as c, contextlib.ExitStack() as stack:
+            self._stack = stack
+            yield c
+
+    def _connect(self, c, drain=True):
+        """連線；drain 時吃掉初始的 status 待機與 sessions。"""
+        sock = self._stack.enter_context(c.websocket_connect("/ws"))
+        if drain:
+            recv_until(sock, is_type("sessions"))
+        return sock
+
+    def _wait_buffer(self, n):
+        buffer = self.state.wm.get("buffer")
+        self.assertTrue(wait_until(lambda: buffer.count() == n))

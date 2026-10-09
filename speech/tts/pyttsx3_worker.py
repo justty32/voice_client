@@ -5,7 +5,7 @@
 
 import sys
 
-from tts.language import _pick_espeak_voice
+from speech.tts.language import _pick_espeak_voice
 
 
 def _pick_tts_driver() -> str | None:

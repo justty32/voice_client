@@ -43,13 +43,13 @@
 
 ### 3.1 好消息：STT 介面很乾淨
 
-`VoiceToText`（`voice_to_text.py`）對外契約單純，換引擎**不需動 `app.py` /
+`VoiceToText`（`speech/voice_to_text.py`）對外契約單純，換引擎**不需動 `app.py` /
 `mobile_server.py` 的接線**：
 
-- 建構：`VoiceToText(config, audio_queue, stt_output_queue)`（`voice_to_text.py:15`）
+- 建構：`VoiceToText(config, audio_queue, stt_output_queue)`（`speech/voice_to_text.py:15`）
 - 輸入：WAV `BytesIO`，**16kHz / mono / 16-bit**（`config.ini [AUDIO] sample_rate=16000`；
   mobile 端轉檔見 `mobile_server.py:75-76`）
-- 輸出：純文字 `str`，放進 `stt_output_queue`（`voice_to_text.py:50-52`）
+- 輸出：純文字 `str`，放進 `stt_output_queue`（`speech/voice_to_text.py:50-52`）
 - 接線點（皆**不需改**）：`app.py:297`（實例化）、`app.py:349/402`（起停）、
   Exchange 綁定 `app.py:170-171,189`、mobile `mobile_server.py:110,161,167`
 
@@ -57,7 +57,7 @@
 
 | 檔案 | 改動 | 估計 |
 |---|---|---|
-| `voice_to_text.py` | 抽出引擎抽象 + 工廠，依 `[STT] engine` 選 `faster-whisper`／`sensevoice` | +80~100 行 |
+| `speech/voice_to_text.py` | 抽出引擎抽象 + 工廠，依 `[STT] engine` 選 `faster-whisper`／`sensevoice` | +80~100 行 |
 | `config.ini` | `[STT]` 新增 `engine = faster-whisper` | +1 行 |
 | `requirements.txt` | 新增 `sherpa-onnx`（**不要** funasr/torch） | +1~2 行 |
 | `tests/test_voice_to_text.py` | 引擎選擇／參數解析測試（參考既有 fake 模式） | +15~20 行 |
@@ -65,7 +65,7 @@
 | `docs/architecture.md`、`README.md` | 說明引擎切換與安裝 | +15~25 行 |
 
 > 註：本專案目前**沒有**任何「依 config 切換 driver/engine」的前例可抄
-> （TTS 的 `text_to_voice.py` 是依 `sys.platform` 寫死，不是 config 切換）；
+> （TTS 的 `speech/text_to_voice.py` 是依 `sys.platform` 寫死，不是 config 切換）；
 > 這個引擎抽象要新建，會成為日後加引擎的範本。
 
 ### 3.3 三個必須先處理的坑
@@ -89,7 +89,7 @@
 
 ## 4. 最小程式骨架（參考，未落地）
 
-引擎抽象（放 `voice_to_text.py` 頂部）：
+引擎抽象（放 `speech/voice_to_text.py` 頂部）：
 
 ```python
 class SttEngine:

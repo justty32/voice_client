@@ -5,7 +5,7 @@
 # 成功時回傳真實 UiEvent（供 TuiRenderer 使用），
 # 失敗時（rich 未安裝）回傳等效的 _UiEventClass 替代類（屬性相容）。
 try:
-    from tui_renderer import UiEvent as _UiEventClass
+    from ui.tui_renderer import UiEvent as _UiEventClass
 except ImportError:  # pragma: no cover
     from dataclasses import dataclass as _dataclass, field as _field
     from typing import Any as _Any

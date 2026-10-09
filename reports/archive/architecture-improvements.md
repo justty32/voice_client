@@ -1,3 +1,5 @@
+> 封存 2026-10-09，由 refactor_next 落地取代；未修項目已移入 workflows/roadmap／idea
+
 # Voice Client 架構改進報告
 
 - 調查日期：2026-07-02

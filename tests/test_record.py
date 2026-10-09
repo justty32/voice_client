@@ -23,7 +23,7 @@ except ImportError:
     sys.modules.setdefault("numpy", types.SimpleNamespace())
 sys.modules.setdefault("pyaudio", types.SimpleNamespace(PyAudio=lambda: None, paInt16=object()))
 
-from record import Recorder
+from speech.record import Recorder
 
 
 def make_config() -> configparser.ConfigParser:
@@ -69,9 +69,9 @@ class TestRecorderErrors(unittest.TestCase):
             loop_calls.append((stream, pa))
             rec._running = False  # 進入 _loop 後結束 worker
 
-        with mock.patch("record.pyaudio.PyAudio",
+        with mock.patch("speech.record.pyaudio.PyAudio",
                         side_effect=[RuntimeError("no audio device"), fake_pa]), \
-                mock.patch("record.time.sleep") as fake_sleep, \
+                mock.patch("speech.record.time.sleep") as fake_sleep, \
                 mock.patch.object(rec, "_interruptible_sleep") as backoff, \
                 mock.patch.object(rec, "_loop", side_effect=_fake_loop):
             rec._worker()
@@ -99,7 +99,7 @@ class TestRecorderErrors(unittest.TestCase):
             if len(waits) >= 6:
                 rec._running = False
 
-        with mock.patch("record.pyaudio.PyAudio", side_effect=RuntimeError("busy")), \
+        with mock.patch("speech.record.pyaudio.PyAudio", side_effect=RuntimeError("busy")), \
                 mock.patch.object(rec, "_interruptible_sleep", side_effect=_record_wait):
             rec._worker()
         self.assertEqual(waits, [2, 4, 8, 16, 30.0, 30.0])
@@ -113,14 +113,14 @@ class TestRecorderErrors(unittest.TestCase):
             calls.append(1)
             rec._running = False
 
-        with mock.patch("record.time.sleep", side_effect=_tick):
+        with mock.patch("speech.record.time.sleep", side_effect=_tick):
             rec._interruptible_sleep(30)
         self.assertEqual(len(calls), 1)
 
     def test_worker_not_started_does_nothing(self):
         events = Queue()
         rec = Recorder(make_config(), Queue(), Queue(), events)
-        with mock.patch("record.pyaudio.PyAudio") as pa:
+        with mock.patch("speech.record.pyaudio.PyAudio") as pa:
             rec._worker()
         pa.assert_not_called()
         self.assertTrue(events.empty())
@@ -161,7 +161,7 @@ class TestRecorderLoopStopFlush(unittest.TestCase):
             # STOP 處理完後迴圈進入待機 sleep：此時結束 _loop
             rec._running = False
 
-        with mock.patch("record.time.sleep", side_effect=_stop_on_idle):
+        with mock.patch("speech.record.time.sleep", side_effect=_stop_on_idle):
             rec._loop(stream, _FakePA())
 
         evs = []

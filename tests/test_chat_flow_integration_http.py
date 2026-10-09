@@ -24,7 +24,7 @@ from tests._helpers import make_sm, wait_until
 
 
 class FakeLegacyHttp(threading.Thread):
-    """形態同 http_client.HttpClient：裸 send_queue→recv_queue＋自有工作執行緒。
+    """形態同 llm.http_client.HttpClient：裸 send_queue→recv_queue＋自有工作執行緒。
 
     收到 payload 後，固定回覆 {"type":"ChatReply","Content":{"full_response":"好的"}}。
     """

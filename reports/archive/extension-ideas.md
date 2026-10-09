@@ -1,3 +1,5 @@
+> 封存 2026-10-09，由 workflows/idea/ideas.md 取代（仍有效的構想已摘要移入；前提「mobile 未對齊」已作廢）
+
 # Voice Client 擴展方向調查報告
 
 > 調查日期：2026-07-02　分支：`refactor/data-tunnel`

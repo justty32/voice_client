@@ -89,7 +89,7 @@ def build_core(
     queues = {key: overrides[key] if key in overrides else queue.Queue() for key in LEGACY_QUEUE_KEYS}
 
     if session_manager is None:
-        from session_manager import SessionManager
+        from domain.session_manager import SessionManager
         session_manager = SessionManager(config)
     ensure_default_session(session_manager)
 

@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from protocol import payloads as P
 from protocol import topics as T
 from utils import clipboard
-from workspace import resolve_filename
+from domain.workspace import resolve_filename
 
 
 class WorkspaceCommandMixin:

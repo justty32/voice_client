@@ -27,7 +27,7 @@ from modules.stt_gate import SttGate
 from modules.workspace_manager import WorkspaceManager
 from protocol import payloads as P
 from protocol import topics as T
-from session_manager import SessionManager
+from domain.session_manager import SessionManager
 
 _spec = importlib.util.spec_from_file_location(
     "codemap", os.path.join(ROOT, "workflows", "common", "code-map", "codemap.py"))

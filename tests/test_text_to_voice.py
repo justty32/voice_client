@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from text_to_voice import AudioPriorityPlayer, _split_language_runs
+from speech.text_to_voice import AudioPriorityPlayer, _split_language_runs
 
 
 def make_config(engine: str = "pyttsx3") -> configparser.ConfigParser:
@@ -49,6 +49,15 @@ class TestAudioPriorityPlayerConfig(unittest.TestCase):
         self.assertEqual(player._kokoro_settings["zh_voice"], "zf_001")
         self.assertEqual(player._kokoro_settings["speed"], 1.1)
         self.assertTrue(Path(player._kokoro_settings["zh_model"]).is_absolute())
+
+    def test_relative_model_dir_is_based_on_project_root(self):
+        """檔案搬到 speech/ 後，相對 kokoro_model_dir 仍以專案根（而非 speech/）為基準。"""
+        root = Path(__file__).resolve().parents[1]
+        player = AudioPriorityPlayer(make_config("kokoro"), queue.Queue(), queue.Queue())
+        self.assertEqual(player._kokoro_settings["zh_model"],
+                         str(root / "models" / "kokoro" / "kokoro-v1.1-zh.onnx"))
+        self.assertEqual(player._kokoro_settings["en_voices"],
+                         str(root / "models" / "kokoro" / "voices-v1.0.bin"))
 
     def test_unknown_engine_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "Unsupported TTS engine"):
@@ -128,7 +137,7 @@ class TestKokoroLiveness(unittest.TestCase):
             player._kokoro_process = _FakeProcess(alive=True)
 
         with mock.patch.object(player, "_start_kokoro_worker", side_effect=_restart) as start, \
-                self.assertLogs("text_to_voice", level="ERROR"):
+                self.assertLogs("speech.text_to_voice", level="ERROR"):
             player._check_kokoro_alive()
             player._check_kokoro_alive()  # 重啟後存活：不再重啟
         start.assert_called_once_with()
@@ -142,7 +151,7 @@ class TestKokoroLiveness(unittest.TestCase):
         with mock.patch.object(player, "_start_kokoro_worker",
                                side_effect=lambda: setattr(player, "_kokoro_process",
                                                            _FakeProcess(alive=False))) as start, \
-                self.assertLogs("text_to_voice", level="ERROR"):
+                self.assertLogs("speech.text_to_voice", level="ERROR"):
             player._check_kokoro_alive()   # 第一次死亡 → 重啟（新 worker 也立刻死）
             player._check_kokoro_alive()   # 第二次死亡 → 放棄
             player._check_kokoro_alive()   # 已放棄：不再動作
@@ -151,7 +160,7 @@ class TestKokoroLiveness(unittest.TestCase):
 
         tasks = queue.Queue()
         player._kokoro_tasks = tasks
-        with self.assertLogs("text_to_voice", level="WARNING"):
+        with self.assertLogs("speech.text_to_voice", level="WARNING"):
             player._play({"text": "你好", "priority": "medium"})
         self.assertTrue(tasks.empty())
         self.assertIsNone(player._current_task_id)
@@ -161,7 +170,7 @@ class TestKokoroLiveness(unittest.TestCase):
         player = self._dead_player()
         with mock.patch.object(player, "_start_kokoro_worker",
                                side_effect=FileNotFoundError("Kokoro model files missing")), \
-                self.assertLogs("text_to_voice", level="ERROR"):
+                self.assertLogs("speech.text_to_voice", level="ERROR"):
             player._check_kokoro_alive()
         self.assertTrue(player._kokoro_dead)
         self.assertIsNone(player._kokoro_process)

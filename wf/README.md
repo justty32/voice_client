@@ -19,7 +19,7 @@ kernel 資產收進這裡；根層既有檔案不被取代，這裡的連結一�
 | [workflows/TEMPLATE.workflow.md](workflows/TEMPLATE.workflow.md) | 新增工作流的範本 |
 | [workflows/common/data-files.md](workflows/common/data-files.md) | 同質記錄表 > 1 KB 抽成資料檔|
 | [workflows/common/reply-style.md](workflows/common/reply-style.md) | 對話回覆文風（參考，非 always-on）|
-| [architecture/](architecture/README.md) | 現況架構調查（2026-10-09）|
+| [architecture/](architecture/README.md) | 架構調查入口（重構前快照已封存）|
 | `tools/` | `wf-lint.sh`、`tabledb.py`、`fix_moved_links.py` 等 |
 
 未搬入（根層已有對應）：planning（→ idea／roadmap／specs／plans 管線）、investigation、

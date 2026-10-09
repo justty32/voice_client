@@ -1,5 +1,5 @@
 """
-text_to_voice.py — TTS 優先級播放器
+speech/text_to_voice.py — TTS 優先級播放器
 
 架構：
 - Dispatcher Thread：管理 heapq 優先佇列，調度語音任務
@@ -7,8 +7,8 @@ text_to_voice.py — TTS 優先級播放器
 - Kokoro：長駐子 process 懶載入中／英文 ONNX 模型，避免每句重載；
   透過共享取消編號中斷播放。
 
-拆分：語言分段 → tts/language.py；pyttsx3 driver／worker → tts/pyttsx3_worker.py；
-Kokoro worker → tts/kokoro_worker.py。本檔保留調度器 AudioPriorityPlayer。
+拆分：語言分段 → speech/tts/language.py；pyttsx3 driver／worker → speech/tts/pyttsx3_worker.py；
+Kokoro worker → speech/tts/kokoro_worker.py。本檔保留調度器 AudioPriorityPlayer。
 
 優先級：
 - high (0)：立即打斷當前播放，清空佇列中所有 medium/low 任務後優先播出
@@ -25,12 +25,15 @@ import time
 from pathlib import Path
 from queue import Empty, Queue
 
-# tts.* 名稱在此 re-export，維持 `from text_to_voice import ...` 相容。
-from tts.kokoro_worker import _kokoro_worker
-from tts.language import _has_cjk, _pick_espeak_voice, _split_language_runs  # noqa: F401
-from tts.pyttsx3_worker import _pick_tts_driver, _tts_worker
+# speech.tts.* 名稱在此 re-export，維持 `from speech.text_to_voice import ...` 相容。
+from speech.tts.kokoro_worker import _kokoro_worker
+from speech.tts.language import _has_cjk, _pick_espeak_voice, _split_language_runs  # noqa: F401
+from speech.tts.pyttsx3_worker import _pick_tts_driver, _tts_worker
 
 log = logging.getLogger(__name__)
+
+# 專案根目錄（本檔位於 speech/ 下一層）；相對的 kokoro_model_dir 以此為基準。
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 # ── Dispatcher ────────────────────────────────────────────────────────────────
@@ -58,7 +61,7 @@ class AudioPriorityPlayer:
         self._ctx = mp.get_context("spawn")
         model_dir = Path(tts.get("kokoro_model_dir", "models/kokoro")).expanduser()
         if not model_dir.is_absolute():
-            model_dir = Path(__file__).resolve().parent / model_dir
+            model_dir = _PROJECT_ROOT / model_dir
         self._kokoro_settings = {
             "en_model": str(model_dir / "kokoro-v1.0.onnx"),
             "en_voices": str(model_dir / "voices-v1.0.bin"),

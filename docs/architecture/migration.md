@@ -24,13 +24,13 @@
 
 | 現有檔案 | 去向 |
 |---|---|
-| `record.py`、`voice_to_text.py` | 經 `core/adapter.py` 轉接器掛上框架（階段②，模組本體零修改） |
-| `workspace.py` | 沿用（WorkspaceManager 的底層資料結構） |
-| `terminal_input.py`、`keyboard_listener.py` | 經轉接器作為 `commands`／`cli_text` 生產者（模組零修改） |
-| `local_control.py` | Wayland 桌面快捷鍵的 Unix datagram socket 接收器；將白名單命令送入既有 `key_signal_queue` |
-| `http_client.py`、`summary_generator.py` | 經轉接器掛上框架（階段④完成邏輯、階段⑤接線；模組零修改） |
-| `session_manager.py` | 由 CommandRouter／ChatFlow 同步呼叫（保持同步物件，零修改） |
-| `tui_renderer.py`、`text_to_voice.py` | 經轉接器掛上框架（ui_event 經 dict→UiEvent 轉換；模組零修改） |
+| `speech/record.py`、`speech/voice_to_text.py` | 經 `core/adapter.py` 轉接器掛上框架（階段②，模組本體零修改） |
+| `domain/workspace.py` | 沿用（WorkspaceManager 的底層資料結構） |
+| `ui/terminal_input.py`、`ui/keyboard_listener.py` | 經轉接器作為 `commands`／`cli_text` 生產者（模組零修改） |
+| `ui/local_control.py`（根層 `local_control.py` 為 KDE 用薄 shim） | Wayland 桌面快捷鍵的 Unix datagram socket 接收器；將白名單命令送入既有 `key_signal_queue` |
+| `llm/http_client.py`、`llm/summary_generator.py` | 經轉接器掛上框架（階段④完成邏輯、階段⑤接線；模組零修改） |
+| `domain/session_manager.py` | 由 CommandRouter／ChatFlow 同步呼叫（保持同步物件，零修改） |
+| `ui/tui_renderer.py`、`speech/text_to_voice.py` | 經轉接器掛上框架（ui_event 經 dict→UiEvent 轉換；模組零修改） |
 
 ### 手機入口
 

@@ -1,3 +1,5 @@
+> 封存 2026-10-09，由 docs/architecture.md 與 workflows/common/code-map/CODE_MAP.md 取代（重構前快照，refactor_next 已落地）
+
 # 報告查證（拆檔後現況）
 
 [入口](README.md)

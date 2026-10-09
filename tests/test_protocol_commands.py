@@ -17,9 +17,9 @@ from types import SimpleNamespace
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import keyboard_listener
-import local_control
-import terminal_input
+from ui import keyboard_listener
+from ui import local_control
+from ui import terminal_input
 from core.message import Message
 from modules import command_router
 from modules.command_router import CommandRouter

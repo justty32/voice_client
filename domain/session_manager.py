@@ -1,3 +1,5 @@
+"""domain/session_manager.py — 多對話管理（狀態與鎖）；檔案格式與 I/O helper 在 domain/session_io.py。"""
+
 import configparser
 import copy
 import json
@@ -6,7 +8,8 @@ import os
 import threading
 from datetime import datetime, timezone
 
-from workspace import Workspace
+from domain import session_io
+from domain.workspace import Workspace
 
 log = logging.getLogger(__name__)
 
@@ -36,18 +39,8 @@ class SessionManager:
             try:
                 with open(self._sessions_file, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                    
-                # 如果是新格式：包含 last_used_title 和 sessions 鍵
-                if isinstance(data, dict) and "sessions" in data:
-                    self._sessions = data.get("sessions", {})
-                    self._current_title = data.get("last_used_title")
-                # 如果是舊格式：直接就是一個以 title 為鍵的 dict
-                elif isinstance(data, dict):
-                    self._sessions = data
-                    self._current_title = None
-                else:
-                    self._sessions = {}
-                    self._current_title = None
+                # 新格式含 last_used_title 與 sessions 鍵；舊格式直接以 title 為鍵
+                self._sessions, self._current_title = session_io.parse_sessions_data(data)
             except (json.JSONDecodeError, Exception) as exc:
                 self._backup_corrupt_file(exc)
                 self._sessions = {}
@@ -74,41 +67,13 @@ class SessionManager:
 
     @staticmethod
     def _migrate_history(session: dict):
-        """把 history 正規化為 List[List[str]]（每筆 [role, content, timestamp]）。
-
-        相容舊格式：history 內為 {role, content, timestamp} 的 dict。
-        """
-        hist = session.get("history")
-        if not isinstance(hist, list):
-            session["history"] = []
-            return
-        migrated: list[list[str]] = []
-        for item in hist:
-            if isinstance(item, dict):
-                migrated.append([
-                    str(item.get("role", "")),
-                    str(item.get("content", "")),
-                    str(item.get("timestamp", "")),
-                ])
-            elif isinstance(item, (list, tuple)):
-                role = str(item[0]) if len(item) > 0 else ""
-                content = str(item[1]) if len(item) > 1 else ""
-                ts = str(item[2]) if len(item) > 2 else ""
-                migrated.append([role, content, ts])
-            # 其它型別略過
-        session["history"] = migrated
+        """把 history 正規化為 [role, content, timestamp]；實作見 session_io.migrate_history。"""
+        session_io.migrate_history(session)
 
     def _save_sessions(self):
         """原子寫入：先寫暫存檔，再以 os.replace 取代正式檔，避免寫到一半留下壞檔。"""
         with self._lock:
-            output = {
-                "last_used_title": self._current_title,
-                "sessions": self._sessions
-            }
-            tmp = f"{self._sessions_file}.tmp"
-            with open(tmp, "w", encoding="utf-8") as f:
-                json.dump(output, f, ensure_ascii=False, indent=2)
-            os.replace(tmp, self._sessions_file)
+            session_io.write_sessions_atomic(self._sessions_file, self._sessions, self._current_title)
 
     def _current(self) -> dict | None:
         """內部用：回傳當前對話的內部 dict 參照（呼叫端須已持有鎖）。"""
@@ -237,13 +202,8 @@ class SessionManager:
             # 備份
             try:
                 os.makedirs(self._deleted_dir, exist_ok=True)
-                # 建立檔名安全的 title
-                safe_title = "".join(c for c in title if c.isalnum() or c in (" ", "-", "_")).strip()
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                backup_path = os.path.join(self._deleted_dir, f"{safe_title}_{timestamp}.json")
-
-                with open(backup_path, "w", encoding="utf-8") as f:
-                    json.dump(self._sessions[title], f, ensure_ascii=False, indent=2)
+                backup_path = session_io.deleted_backup_path(self._deleted_dir, title)
+                session_io.write_json(backup_path, self._sessions[title])
 
                 # 刪除
                 del self._sessions[title]
@@ -261,17 +221,11 @@ class SessionManager:
             try:
                 if not filename:
                     filename = self._current_title
-
-                if not filename.lower().endswith(".json"):
-                    filename += ".json"
-
-                # 如果只是檔名，存放在 output 目錄
-                if os.sep not in filename and "/" not in filename and "\\" not in filename:
-                    filename = os.path.join(os.path.dirname(self._sessions_file), filename)
+                # 只給檔名時存放在 output 目錄
+                filename = session_io.resolve_session_path(filename, self._sessions_file)
 
                 os.makedirs(os.path.dirname(filename), exist_ok=True)
-                with open(filename, "w", encoding="utf-8") as f:
-                    json.dump(self._sessions[self._current_title], f, ensure_ascii=False, indent=2)
+                session_io.write_json(filename, self._sessions[self._current_title])
 
                 return True, f"對話已另存至: {filename}"
             except Exception as e:
@@ -281,12 +235,8 @@ class SessionManager:
         """從 JSON 檔案載入對話，載入後自動切換。"""
         with self._lock:
             try:
-                if not filename.lower().endswith(".json"):
-                    filename += ".json"
-
-                # 如果只是檔名，從 output 目錄找
-                if os.sep not in filename and "/" not in filename and "\\" not in filename:
-                    filename = os.path.join(os.path.dirname(self._sessions_file), filename)
+                # 只給檔名時從 output 目錄找
+                filename = session_io.resolve_session_path(filename, self._sessions_file)
 
                 if not os.path.exists(filename):
                     return False, f"找不到檔案: {filename}"
@@ -332,21 +282,4 @@ class SessionManager:
     def get_history(self) -> str:
         """獲取當前對話的歷史紀錄字串。"""
         with self._lock:
-            session = self._current()
-            if not session or not session.get("history"):
-                return "目前沒有對話歷史。"
-
-            lines = [f"--- 對話歷史: {session['title']} ---"]
-            for msg in session["history"]:
-                role = msg[0] if len(msg) > 0 else "unknown"
-                content = msg[1] if len(msg) > 1 else ""
-
-                if role == "user":
-                    prefix = "用戶說："
-                elif role == "assistant":
-                    prefix = "AI回覆："
-                else:
-                    prefix = f"[{role}] "
-
-                lines.append(f"{prefix}{content}")
-            return "\n".join(lines)
+            return session_io.format_history(self._current())

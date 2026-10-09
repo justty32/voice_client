@@ -13,7 +13,7 @@
 
 ## 開發／測試用 Python 套件
 
-`fastapi`、`uvicorn` 除了手機模式執行期需要，也是 `tests/test_mobile_server.py` 的依賴；
+`fastapi`、`uvicorn` 除了手機模式執行期需要，也是 `tests/test_mobile_server.py`、`test_mobile_alignment.py` 的依賴；
 `httpx` 只供 `fastapi.testclient` 使用（列於 `requirements.txt` 的開發段）。缺少時該測試檔整檔 skip。
 
 ## 開發輔助工具

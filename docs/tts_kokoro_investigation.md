@@ -7,7 +7,7 @@
 Kokoro 已於 2026-06-22 接入桌面 TTS，`config.ini` 預設為 `engine = kokoro`。
 
 - 英文使用 Kokoro v1.0，中文使用專用 v1.1-zh 模型。
-- `text_to_voice.py` 以長駐 worker 載入模型，中英混合文字會分段合成。
+- `speech/text_to_voice.py` 以長駐 worker 載入模型，中英混合文字會分段合成。
 - 播放使用 PyAudio，保留 high priority 打斷、F10／`/stop` 與 mute 語意。
 - `pyttsx3` 仍可作 fallback；Linux 使用該後端時才需要 `espeak-ng`。
 
@@ -30,7 +30,7 @@ sudo pacman -S espeak-ng        # extra/espeak-ng 1.52.0 已在官方源
 
 ### 1b. 已在手上：gTTS
 `gtts 2.5.4` 已在 `.venv`，中英文品質好，但**需連網**、每句一次 HTTP 往返、有延遲與隱私考量，
-且目前 `text_to_voice.py` 是 pyttsx3 子進程架構，要接 gTTS 得改播放層（下載 mp3 → 用 pydub/
+且目前 `speech/text_to_voice.py` 是 pyttsx3 子進程架構，要接 gTTS 得改播放層（下載 mp3 → 用 pydub/
 ffmpeg 播放）。適合「有網路、要好音質、不在意延遲」的場景。
 
 ---

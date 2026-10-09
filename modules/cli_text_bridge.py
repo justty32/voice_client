@@ -15,7 +15,7 @@ from core.message import Message
 from core.module import TunnelModule
 from protocol import payloads as P
 from protocol import topics as T
-from terminal_input import EXIT_SIGNAL
+from ui.terminal_input import EXIT_SIGNAL
 
 
 class CliTextBridge(TunnelModule):
