@@ -32,7 +32,6 @@ def make_config() -> configparser.ConfigParser:
         "sample_rate": "16000",
         "channels": "1",
         "chunk_size": "1024",
-        "chunk_duration": "60",
         "silence_seconds": "1.5",
         "silence_threshold": "300",
         "max_duration": "0",

@@ -25,7 +25,7 @@ class SummaryGenerator:
         self._output_queue = summary_output_queue
 
         slm = config["SLM"]
-        self._enabled = slm.getboolean("enabled", True)
+        self._enabled = slm.getboolean("enabled", False)
         self._model = slm.get("model", "gemma3:1b")
         base_url = slm.get("base_url", "http://localhost:11434")
         api_key = slm.get("api_key", "")

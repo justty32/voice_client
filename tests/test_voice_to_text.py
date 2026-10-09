@@ -43,9 +43,10 @@ class TestVoiceToTextConfig(unittest.TestCase):
         vtt = VoiceToText(make_config("en"), Queue(), Queue())
         self.assertEqual(vtt._language, "en")
 
-    def test_initial_prompt_defaults_to_none(self):
+    def test_initial_prompt_default_matches_config_ini(self):
+        """缺 initial_prompt 鍵時用與 config.ini 相同的預設提示；明確留空才停用（見下一案）。"""
         vtt = VoiceToText(make_config("zh"), Queue(), Queue())
-        self.assertIsNone(vtt._initial_prompt)
+        self.assertEqual(vtt._initial_prompt, "以下是繁體中文的句子。")
 
     def test_blank_initial_prompt_is_none(self):
         vtt = VoiceToText(make_config("zh", "   "), Queue(), Queue())

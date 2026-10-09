@@ -36,11 +36,12 @@ class TestLanguageRuns(unittest.TestCase):
 
 
 class TestAudioPriorityPlayerConfig(unittest.TestCase):
-    def test_pyttsx3_remains_default_backend(self):
+    def test_default_engine_matches_config_ini(self):
+        """缺 engine 鍵時的預設與 config.ini 一致（kokoro）；不啟動 worker。"""
         config = make_config()
         del config["TTS"]["engine"]
         player = AudioPriorityPlayer(config, queue.Queue(), queue.Queue())
-        self.assertEqual(player._engine, "pyttsx3")
+        self.assertEqual(player._engine, "kokoro")
 
     def test_kokoro_settings_resolve_from_project_root(self):
         player = AudioPriorityPlayer(make_config("kokoro"), queue.Queue(), queue.Queue())

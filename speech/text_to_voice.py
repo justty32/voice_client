@@ -50,7 +50,7 @@ class AudioPriorityPlayer:
         self._tts_cmd_queue = tts_cmd_queue
 
         tts = config["TTS"]
-        self._engine = tts.get("engine", "pyttsx3").strip().lower()
+        self._engine = tts.get("engine", "kokoro").strip().lower()
         if self._engine not in {"pyttsx3", "kokoro"}:
             raise ValueError(f"Unsupported TTS engine: {self._engine}")
         self._rate = int(tts.get("rate", 180))

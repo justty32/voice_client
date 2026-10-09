@@ -31,14 +31,14 @@ class VoiceToText:
         self._stt_event_queue = stt_event_queue
 
         stt = config["STT"]
-        self._model_size = stt.get("model_size", "base")
-        self._device = stt.get("device", "cpu")
-        self._compute_type = stt.get("compute_type", "int8")
-        language = stt.get("language", "auto").strip().lower()
+        self._model_size = stt.get("model_size", "large-v3")
+        self._device = stt.get("device", "cuda")
+        self._compute_type = stt.get("compute_type", "float16")
+        language = stt.get("language", "zh").strip().lower()
         self._language = None if language in ("", "auto", "detect") else language
         self._beam_size = int(stt.get("beam_size", 5))
         self._vad_filter = stt.getboolean("vad_filter", True)
-        initial_prompt = stt.get("initial_prompt", "").strip()
+        initial_prompt = stt.get("initial_prompt", "以下是繁體中文的句子。").strip()
         self._initial_prompt = initial_prompt or None
 
         self._model = None

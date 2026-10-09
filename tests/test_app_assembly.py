@@ -186,7 +186,7 @@ class TestSettings(unittest.TestCase):
 
     def test_slm_settings(self):
         cfg = configparser.ConfigParser()
-        self.assertEqual(slm_settings(cfg), (20, True))
+        self.assertEqual(slm_settings(cfg), (20, False))
         cfg["SLM"] = {"summary_threshold": "5", "enabled": "false"}
         self.assertEqual(slm_settings(cfg), (5, False))
 

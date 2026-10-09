@@ -94,7 +94,7 @@ python -m venv .venv
 
 主要區段：`[AUDIO]` 錄音與切段、`[CONTROL]` 熱鍵、`[STT]` Whisper、`[SLM]` 摘要小模型、
 `[LLM]` 主對話模型、`[SERVER]` 直連／轉發模式、`[TTS]` 語音合成、`[WORKSPACE]` 檔案位置、
-`[LOGGING]`、`[MOBILE]`。每個鍵的意義、預設值與目前未生效的鍵見
+`[LOGGING]`、`[MOBILE]`。每個鍵的意義與預設值見
 [設定檔速查](docs/user_manual/config.md)。日誌在 `output/system.log`。
 
 ## 🗂️ 專案結構

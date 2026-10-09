@@ -4,7 +4,7 @@
 
 ## 8. 設定檔（config.ini）速查
 
-下列範例的值是 **repo 附的 `config.ini`** 內容；註解中的「程式預設」是缺鍵時的 fallback。
+下列範例的值是 **repo 附的 `config.ini`** 內容。`[STT]`、`[SLM] enabled`、`[TTS] engine` 缺鍵時的程式預設與這裡相同；其他鍵若程式預設不同，註解會另外標出。
 改設定後需重啟程式。
 
 ### [AUDIO] — 錄音行為
@@ -18,7 +18,7 @@ silence_threshold = 300    # 靜音判斷閾值（越小越靈敏）
 max_duration = 0           # 連續講話時單段最長秒數，到了強制切段；0 = 不限
 ```
 
-`chunk_duration` 目前會被讀取但不影響行為。錄音期間每段都會即時辨識並寫入工作區；
+錄音期間每段都會即時辨識並寫入工作區；
 按鍵停止時只在最後一段確實有語音時才送 STT。
 
 ### [CONTROL] — 熱鍵（只影響 pynput／X11 路徑）
@@ -34,10 +34,10 @@ key_play_last_original = f6
 ### [STT] — Whisper
 
 ```ini
-model_size = large-v3      # 程式預設 base；tiny/base/small/medium/large-v2/large-v3/large-v3-turbo
-device = cuda              # 程式預設 cpu；cpu 或 cuda
-compute_type = float16     # 程式預設 int8；CPU: int8/float32；GPU: float16
-language = zh              # 程式預設 auto；auto/zh/en/ja/…
+model_size = large-v3      # tiny/base/small/medium/large-v2/large-v3/large-v3-turbo
+device = cuda              # cpu 或 cuda（沒有 NVIDIA 顯卡請改 cpu）
+compute_type = float16     # CPU: int8/float32；GPU: float16
+language = zh              # auto/zh/en/ja/…
 beam_size = 5              # 1=最快，越大越準但越慢
 vad_filter = true          # 靜音過濾，建議開著
 initial_prompt = 以下是繁體中文的句子。   # 上文提示；留空不使用
@@ -49,7 +49,7 @@ initial_prompt = 以下是繁體中文的句子。   # 上文提示；留空不�
 ### [SLM] — 本地摘要小模型
 
 ```ini
-enabled = false            # 程式預設 true；false＝LLM 回覆直接朗讀
+enabled = false            # false＝LLM 回覆直接朗讀
 model = gemma3:1b          # Ollama 模型名稱
 base_url = http://localhost:11434/v1
 api_key =
@@ -101,7 +101,7 @@ retry = 0         # 程式預設 3
 ### [TTS] — 語音合成
 
 ```ini
-engine = kokoro                    # 程式預設 pyttsx3；kokoro 或 pyttsx3
+engine = kokoro                    # kokoro 或 pyttsx3
 rate = 180                         # 只供 pyttsx3 使用
 volume = 1.0                       # 音量 0.0–1.0
 kokoro_model_dir = models/kokoro   # 相對路徑以專案根為準
@@ -139,8 +139,3 @@ ssl = true
 ssl_cert = output/ssl/cert.pem   # 不存在時自動產生自簽憑證
 ssl_key = output/ssl/key.pem
 ```
-
-### 目前未被程式讀取的鍵
-
-`config.ini` 裡的 `[SESSION] auto_save`、`backup_interval`，`[WORKSPACE] output_dir`、
-`permissions_file`，`[UI] status_refresh_rate` 目前沒有任何程式讀取，改了不會生效。

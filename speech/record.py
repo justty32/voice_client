@@ -39,7 +39,6 @@ class Recorder:
         self._sample_rate = int(audio.get("sample_rate", 16000))
         self._channels = int(audio.get("channels", 1))
         self._chunk_size = int(audio.get("chunk_size", 1024))
-        self._chunk_duration = int(audio.get("chunk_duration", 60))
         self._silence_seconds = float(audio.get("silence_seconds", 1.5))
         self._max_duration = int(audio.get("max_duration", 0))
         self._silence_threshold = float(audio.get("silence_threshold", 300.0))

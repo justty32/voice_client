@@ -16,21 +16,21 @@ STT 引擎是 [faster-whisper](https://github.com/SYSTRAN/faster-whisper)，本�
 
 ```ini
 [STT]
-model_size = base
+model_size = large-v3
 ```
 
 | 模型 | 大小 | 速度 | 準確度 | 適合場景 |
 |---|---|---|---|---|
 | `tiny` | 75 MB | 最快 | 最低 | 低資源機器、快速測試 |
-| `base` | 145 MB | 快 | 尚可 | **預設值，日常用夠了** |
+| `base` | 145 MB | 快 | 尚可 | CPU 日常用夠了 |
 | `small` | 483 MB | 中 | 好 | 想更準但不換 GPU |
 | `medium` | 1.5 GB | 慢 | 很好 | CPU 跑會明顯延遲 |
 | `large-v2` | 3 GB | 很慢 | 最好 | 需要 GPU |
-| `large-v3` | 3 GB | 很慢 | 最好（新版） | 需要 GPU |
+| `large-v3` | 3 GB | 很慢 | 最好（新版） | **預設值**，需要 GPU |
 | `large-v3-turbo` | 1.6 GB | 快（GPU） | 很好（略低於 v3） | **GPU 推薦，速度／準度最佳平衡** |
 
-> 表中的「預設值」指程式缺鍵時的 fallback；repo 附的 `config.ini` 目前設為 `large-v3`、`device = cuda`、
-> `compute_type = float16`、`language = zh`，沒有 NVIDIA GPU 時請改回 CPU 設定（見 2.3、2.4）。
+> 預設（`config.ini` 與程式缺鍵時相同）是 `large-v3`、`device = cuda`、`compute_type = float16`、
+> `language = zh`。沒有 NVIDIA GPU 時請改成 CPU 設定（見 2.3、2.4）。
 
 一般建議：CPU 跑用 `base`（或 `small` 可接受），有 GPU 用 `large-v3-turbo`（快又準、VRAM 省）；要極致準度才用 `large-v3`。
 

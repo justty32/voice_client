@@ -26,5 +26,5 @@ def slm_settings(config) -> tuple[int, bool]:
     """回傳 `(summary_threshold, enabled)`；`[SLM]` 缺節或缺鍵時為 `(20, True)`。"""
     return (
         config.getint("SLM", "summary_threshold", fallback=20),
-        config.getboolean("SLM", "enabled", fallback=True),
+        config.getboolean("SLM", "enabled", fallback=False),
     )
