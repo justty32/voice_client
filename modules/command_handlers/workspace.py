@@ -3,6 +3,8 @@
 import os
 from datetime import datetime, timezone
 
+from protocol import payloads as P
+from protocol import topics as T
 from utils import clipboard
 from workspace import resolve_filename
 
@@ -55,8 +57,8 @@ class WorkspaceCommandMixin:
     def _handle_clear(self, args: list) -> None:
         target = args[0].lower() if args else self._wm.current
         if target == "ui":
-            self.emit("ui_event", {"type": "clear"})
-            self.emit("ui_event", {"type": "status", "text": "待機"})
+            self.emit(T.UI_EVENT, P.ui_clear())
+            self.emit(T.UI_EVENT, P.ui_status("待機"))
             return
         if target == "chat":
             if self._sm is None:
@@ -105,6 +107,10 @@ class WorkspaceCommandMixin:
         if args and idx is None:
             self._ui_msg("用法: /to_top [編號]（需為數字）")
             return
+        if idx is not None and idx < 1:
+            # 編號從 1 起算；0 或負數不再被當成「無參數」而移動最後一筆
+            self._ui_msg("用法: /to_top [編號]（編號需 ≥ 1）")
+            return
         name = self._wm.current
         if not self._wm.get(name).move_to_top((idx - 1) if idx else -1):
             if idx:
@@ -122,20 +128,25 @@ class WorkspaceCommandMixin:
         ws.concat_all(" ")
         self._ui_msg(f"[系統] 已連接 {name} 工作區（將 {count} 筆壓縮為 1 筆）。")
 
+    def _clipboard_impl(self):
+        """注入的剪貼簿實作；未注入時於呼叫當下取 `utils.clipboard`（保留 mock.patch 相容）。"""
+        injected = getattr(self, "_clipboard", None)
+        return injected if injected is not None else clipboard
+
     def _handle_copy(self) -> None:
         name = self._wm.current
         ws = self._wm.get(name)
         if ws.is_empty():
             self._ui_msg(f"[{name} 工作區是空的，沒有可複製的內容]")
             return
-        ok, err = clipboard.copy(ws.flatten(seg_sep=" ", entry_sep="\n"))
+        ok, err = self._clipboard_impl().copy(ws.flatten(seg_sep=" ", entry_sep="\n"))
         self._ui_msg(
             f"[系統] 已複製 {name} 工作區 {ws.count()} 筆到剪貼簿。"
             if ok else f"[錯誤] {err}"
         )
 
     def _handle_paste(self) -> None:
-        ok, data = clipboard.paste()
+        ok, data = self._clipboard_impl().paste()
         if not ok:
             self._ui_msg(f"[錯誤] {data}")
             return
@@ -184,22 +195,18 @@ class WorkspaceCommandMixin:
         if ws.is_empty():
             self._ui_msg("[系統] 緩衝區是空的。")
             return
-        content = ws.flatten(seg_sep=" ", entry_sep=" ")
-        ws.clear()
+        # 讀取＋清空須為單一原子操作，避免其間由其它執行緒 append 的 entry 遺失。
+        content = ws.drain(seg_sep=" ", entry_sep=" ")
         if not content.strip():
             self._ui_msg("[系統] 緩衝區是空的。")
             return
-        payload = {
-            "Content": content,
-            "Title": (self._sm.current_title if self._sm is not None else None) or "default",
-            "Metadata": {"ClientTime": datetime.now(timezone.utc).isoformat()},
-        }
+        payload = P.outbound_chat(
+            content,
+            (self._sm.current_title if self._sm is not None else None) or "default",
+            datetime.now(timezone.utc).isoformat(),
+        )
         if self._sm is not None:
             self._sm.add_message("user", content)
-        self.emit("ui_event", {
-            "type": "message",
-            "role": "sending",
-            "text": f"[傳送內容] {content}",
-        })
-        self.emit("outbound", payload)
-        self.emit("ui_event", {"type": "status", "text": "傳送中"})
+        self.emit(T.UI_EVENT, P.ui_message("sending", f"[傳送內容] {content}"))
+        self.emit(T.OUTBOUND, payload)
+        self.emit(T.UI_EVENT, P.ui_status("傳送中"))

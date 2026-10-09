@@ -8,3 +8,5 @@
 - 錄音靜音前置保留與避免純靜音反覆送 STT。
 - espeak 中文／英文 voice 自動選擇。
 - KDE Plasma Wayland F8：KDE Global Shortcuts 經 `local_control.py` 控制錄音切換。
+- refactor_next（2026-10-09）：`protocol/` 協定單一來源＋契約測試、共享狀態加鎖、錯誤閉環（`stt_event`）、
+  `build_core()`／`Lifecycle` 組裝、指令派發表、手機改走 Data Tunnel（`mobile/edge.py`）。

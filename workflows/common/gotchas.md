@@ -8,5 +8,5 @@
 - 不要同時啟動兩個桌面 Voice Client；它們共用同一個
   `$XDG_RUNTIME_DIR/voice-client-control.sock`。
 - 音訊整合測試有三層：純 queue／mock、系統裝置可見、實際聽感；前兩層通過不代表第三層完成。
-- `mobile_server.py` 尚未完全對齊桌面 Data Tunnel；修改共享元件時要檢查兩條入口。
+- `mobile_server.py` 與桌面共用 `build_core()`（階段 7b）；改 CommandRouter／ChatFlow 等共享模組或 `build_core()` 參數時，兩條入口的測試都要跑。
 - TTS 的 `config.ini [TTS].engine` 目前不代表所有後端都已實際接通，先核對 `text_to_voice.py`。

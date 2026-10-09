@@ -203,6 +203,26 @@ class TestCommandRouterRecorderEvent(unittest.TestCase):
         self.assertEqual(status_msgs[0].payload["text"], "處理中")
         self.assertFalse(self.router._is_recording)
 
+    # ── 13b. recording_stopped flushed=False（靜音）→ status「待機」────────
+    def test_recording_stopped_without_flush_returns_idle(self):
+        """靜音錄音停止時沒有音訊送往 STT，狀態列應直接回「待機」（B8）。"""
+        self.router.handle(Message(topic="recorder_event", payload={"event": "recording_started"}))
+        _drain(self.router)
+        self.router.handle(Message(topic="recorder_event",
+                                   payload={"event": "recording_stopped", "flushed": False}))
+        msgs = _drain(self.router)
+        status_msgs = [m for m in msgs if m.topic == "ui_event" and m.payload.get("type") == "status"]
+        self.assertEqual([m.payload["text"] for m in status_msgs], ["待機"])
+        self.assertFalse(self.router._is_recording)
+
+    # ── 13c. recording_stopped flushed=True → status「處理中」──────────────
+    def test_recording_stopped_with_flush_keeps_processing(self):
+        self.router.handle(Message(topic="recorder_event",
+                                   payload={"event": "recording_stopped", "flushed": True}))
+        msgs = _drain(self.router)
+        status_msgs = [m for m in msgs if m.topic == "ui_event" and m.payload.get("type") == "status"]
+        self.assertEqual([m.payload["text"] for m in status_msgs], ["處理中"])
+
     # ── 14. error → gate_ctl normal + [錄音錯誤] 訊息 + status 待機 + _is_recording False
     def test_error_event_resets_state(self):
         """error 事件應 emit gate_ctl normal、[錄音錯誤] system 訊息、status 待機，
@@ -246,6 +266,45 @@ class TestCommandRouterRecorderEvent(unittest.TestCase):
         recorder_msgs = [m for m in msgs if m.topic == "recorder_ctl"]
         self.assertEqual(len(recorder_msgs), 1)
         self.assertEqual(recorder_msgs[0].payload, "START")
+
+
+class TestCommandRouterSttEvent(unittest.TestCase):
+    """stt_event：STT 結束後狀態列回「待機」；錯誤另顯示訊息（B7、B8、D6）。"""
+
+    def setUp(self):
+        self.router = _make_router()
+
+    def _ui(self, payload):
+        self.router.handle(Message(topic="stt_event", payload=payload))
+        msgs = _drain(self.router)
+        self.assertTrue(all(m.topic == "ui_event" for m in msgs))
+        status = [m.payload["text"] for m in msgs if m.payload.get("type") == "status"]
+        texts = [m.payload["text"] for m in msgs if m.payload.get("type") == "message"]
+        return status, texts
+
+    def test_stt_error_shows_message_and_idle(self):
+        status, texts = self._ui({"event": "stt_error", "message": "STT 模型未載入"})
+        self.assertEqual(texts, ["[STT 錯誤] STT 模型未載入"])
+        self.assertEqual(status, ["待機"])
+
+    def test_stt_empty_returns_idle(self):
+        status, texts = self._ui({"event": "stt_empty"})
+        self.assertEqual((status, texts), (["待機"], []))
+
+    def test_stt_done_returns_idle(self):
+        status, texts = self._ui({"event": "stt_done"})
+        self.assertEqual((status, texts), (["待機"], []))
+
+    def test_stt_event_while_recording_keeps_status(self):
+        """錄音中途切片的 STT 結果不得把「錄音中」蓋成「待機」；錯誤訊息仍顯示。"""
+        self.router._is_recording = True
+        self.assertEqual(self._ui({"event": "stt_done"}), ([], []))
+        status, texts = self._ui({"event": "stt_error", "message": "x"})
+        self.assertEqual(status, [])
+        self.assertEqual(texts, ["[STT 錯誤] x"])
+
+    def test_unknown_stt_event_ignored(self):
+        self.assertEqual(self._ui({"event": "???"}), ([], []))
 
 
 if __name__ == "__main__":

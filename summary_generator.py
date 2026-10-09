@@ -9,7 +9,11 @@ from utils.prompt_loader import load_prompt
 log = logging.getLogger(__name__)
 
 class SummaryGenerator:
-    """接收 LLM 回覆並生成摘要的元件。"""
+    """接收 LLM 回覆並生成摘要的元件。
+
+    輸出（summary_output_queue）：{"type":"status"} 狀態、{"type":"summary"} 摘要；
+    例外或空摘要時改出 {"type":"summary_failed","message","text"}（text＝原文）。
+    """
 
     def __init__(
         self,
@@ -40,6 +44,8 @@ class SummaryGenerator:
 
     def stop(self):
         self._running = False
+        if self._thread is not None and self._thread is not threading.current_thread():
+            self._thread.join(timeout=1)
 
     def _loop(self):
         while self._running:
@@ -61,7 +67,14 @@ class SummaryGenerator:
                         "text": summary,
                         "model": self._model,
                     })
+                else:
+                    self._put_failed("空摘要", text)
             except Exception as exc:
                 log.warning("SLM summary failed: %s", exc)
+                self._put_failed(str(exc), text)
             finally:
                 self._output_queue.put({"type": "status", "text": "待機"})
+
+    def _put_failed(self, message: str, text: str) -> None:
+        """摘要失敗（例外或空摘要）：帶回原文，讓下游改播原文而非無聲。"""
+        self._output_queue.put({"type": "summary_failed", "message": message, "text": text})

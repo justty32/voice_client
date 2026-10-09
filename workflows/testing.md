@@ -6,7 +6,7 @@
 .venv/bin/python -m pytest -q
 ```
 
-目前基準為 335 tests + 5 subtests。
+目前基準為 `514 passed, 49 subtests passed`。
 
 ## 標準庫 runner
 

@@ -5,9 +5,11 @@ class SessionCommandMixin:
     """提供 SessionManager 相關指令；由 CommandRouter 組合使用。"""
 
     def _handle_new(self, args: list) -> None:
-        """建立新對話；無標題時使用 session_N 格式。"""
-        title = " ".join(args) if args else f"session_{len(self._sm.list_sessions()) + 1}"
-        self._sm.new_session(title)
+        """建立新對話；無標題時使用第一個未用的 session_N。同名已存在時拒絕、不覆蓋。"""
+        title = " ".join(args) if args else self._sm.next_auto_title()
+        if self._sm.new_session(title) is None:
+            self._ui_msg(f"對話已存在: {title}（未覆蓋，請用 /switch）")
+            return
         self._ui_msg(f"新建對話: {title}")
 
     def _handle_switch(self, args: list) -> None:

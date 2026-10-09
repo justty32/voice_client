@@ -33,6 +33,10 @@ class TestExchangeRouting(unittest.TestCase):
     def test_tick_empty_returns_false(self):
         self.assertFalse(self.ex.tick())
 
+    def test_routes_lists_registered_topics(self):
+        self.ex.register_consumer("topic_b", Inbox())
+        self.assertEqual(self.ex.routes(), ("topic_a", "topic_b"))
+
     def test_duplicate_consumer_raises(self):
         with self.assertRaises(ValueError):
             self.ex.register_consumer("topic_a", Inbox())

@@ -8,6 +8,8 @@ from queue import Empty, Queue
 import numpy as np
 import pyaudio
 
+from protocol import payloads as P
+
 
 class Recorder:
     """錄音器。透過 recorder_cmd_queue 接收 START/STOP，將 WAV BytesIO 片段放入 audio_queue。
@@ -17,6 +19,9 @@ class Recorder:
     2. 靜音 >= silence_seconds → 切片（講完一句後的自然停頓）
     講話前的純靜音僅保留約 0.5 秒 pre-roll，不無限累積。
     每次切片後重置計時器與語音旗標，繼續錄音直到收到 STOP。
+
+    STOP 時發 recording_stopped（flushed＝是否有音訊送往 STT）。
+    開裝置或錄音迴圈失敗時發 error 事件，並以 min(2**n, 30) 秒退避重試直到 stop()。
     """
 
     def __init__(
@@ -49,12 +54,30 @@ class Recorder:
 
     def stop(self):
         self._running = False
+        if self._thread is not None and self._thread is not threading.current_thread():
+            self._thread.join(timeout=1)
 
     # ── Worker ─────────────────────────────────────────────────────────
 
+    _MAX_BACKOFF = 30.0  # 重試退避上限（秒）
+
     def _worker(self):
+        """開啟音訊裝置並執行 _loop；失敗時回報 error 事件，以指數退避重試直到 stop()。"""
+        failures = 0
+        while self._running:
+            entered, failed = self._run_once()
+            if entered:
+                failures = 0  # 曾成功進入 _loop：退避從頭計
+            if failed:
+                failures += 1
+                self._interruptible_sleep(min(2 ** failures, self._MAX_BACKOFF))
+
+    def _run_once(self) -> tuple[bool, bool]:
+        """開裝置跑一次 _loop，回傳 (是否曾進入 _loop, 是否以例外結束)；例外時 emit error 事件。"""
         pa = None
         stream = None
+        entered = False
+        failed = False
         try:
             pa = pyaudio.PyAudio()
             stream = pa.open(
@@ -64,9 +87,11 @@ class Recorder:
                 input=True,
                 frames_per_buffer=self._chunk_size,
             )
+            entered = True
             self._loop(stream, pa)
         except Exception as exc:
-            self._recorder_event_queue.put({"event": "error", "message": str(exc)})
+            failed = True
+            self._recorder_event_queue.put(P.recorder_event("error", message=str(exc)))
         finally:
             if stream is not None:
                 try:
@@ -76,6 +101,13 @@ class Recorder:
                     pass
             if pa is not None:
                 pa.terminate()
+        return entered, failed
+
+    def _interruptible_sleep(self, seconds: float) -> None:
+        """以 0.1 秒步進等待，stop() 後立即返回。"""
+        deadline = time.monotonic() + seconds
+        while self._running and time.monotonic() < deadline:
+            time.sleep(0.1)
 
     def _loop(self, stream, pa):
         recording = False
@@ -102,11 +134,14 @@ class Recorder:
                 elif cmd == "STOP" and recording:
                     recording = False
                     # 停止時只在確實錄到語音時才送出，避免末段純靜音白跑 STT
-                    if had_speech:
+                    flushed = had_speech
+                    if flushed:
                         self._flush(frames, pa)
                     frames = []
                     had_speech = False
-                    self._recorder_event_queue.put({"event": "recording_stopped"})
+                    # flushed=False 代表沒有音訊送往 STT，下游據此把狀態列復位為待機
+                    self._recorder_event_queue.put(
+                        P.recorder_event("recording_stopped", flushed=flushed))
             except Empty:
                 pass
 

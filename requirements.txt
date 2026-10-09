@@ -15,6 +15,9 @@ pydub
 cryptography
 pyperclip
 
+# 開發／測試：fastapi.testclient（tests/test_mobile_server.py）需要；執行期不需要。
+httpx
+
 # GPU（device=cuda）才需要：CTranslate2 4.x 針對 CUDA 12 編譯，需 libcublas.so.12。
 # 系統若是 CUDA 13 缺 .so.12，安裝後由 voice_to_text 自動預載。CPU 模式可不裝。
 nvidia-cublas-cu12; platform_system == "Linux"

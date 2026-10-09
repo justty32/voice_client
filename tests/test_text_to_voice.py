@@ -2,6 +2,7 @@ import configparser
 import queue
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from text_to_voice import AudioPriorityPlayer, _split_language_runs
 
@@ -89,6 +90,88 @@ class TestAudioPriorityPlayerConfig(unittest.TestCase):
         player._kokoro_results.put(("done", 2, None))
         player._drain_kokoro_results()
         self.assertIsNone(player._current_task_id)
+
+
+class _FakeProcess:
+    def __init__(self, alive: bool):
+        self.alive = alive
+        self.exitcode = None if alive else -9
+
+    def is_alive(self):
+        return self.alive
+
+
+class TestKokoroLiveness(unittest.TestCase):
+    """B2／D7：Kokoro worker 死亡 → 清狀態、自動重啟一次，再死則放棄並丟棄任務。"""
+
+    def _dead_player(self):
+        player = AudioPriorityPlayer(make_config("kokoro"), queue.Queue(), queue.Queue())
+        player._kokoro_process = _FakeProcess(alive=False)
+        player._kokoro_tasks = queue.Queue()
+        player._current_task_id = 5
+        player._heap = [(1, 0, {"text": "待播", "priority": "medium"})]
+        return player
+
+    def test_alive_worker_is_left_alone(self):
+        player = self._dead_player()
+        player._kokoro_process = _FakeProcess(alive=True)
+        with mock.patch.object(player, "_start_kokoro_worker") as start:
+            player._check_kokoro_alive()
+        start.assert_not_called()
+        self.assertEqual(player._current_task_id, 5)
+        self.assertEqual(len(player._heap), 1)
+
+    def test_first_death_clears_state_and_restarts_once(self):
+        player = self._dead_player()
+
+        def _restart():
+            player._kokoro_process = _FakeProcess(alive=True)
+
+        with mock.patch.object(player, "_start_kokoro_worker", side_effect=_restart) as start, \
+                self.assertLogs("text_to_voice", level="ERROR"):
+            player._check_kokoro_alive()
+            player._check_kokoro_alive()  # 重啟後存活：不再重啟
+        start.assert_called_once_with()
+        self.assertIsNone(player._current_task_id)
+        self.assertEqual(player._heap, [])
+        self.assertEqual(player._kokoro_restarts, 1)
+        self.assertFalse(player._kokoro_dead)
+
+    def test_second_death_gives_up_and_drops_tasks(self):
+        player = self._dead_player()
+        with mock.patch.object(player, "_start_kokoro_worker",
+                               side_effect=lambda: setattr(player, "_kokoro_process",
+                                                           _FakeProcess(alive=False))) as start, \
+                self.assertLogs("text_to_voice", level="ERROR"):
+            player._check_kokoro_alive()   # 第一次死亡 → 重啟（新 worker 也立刻死）
+            player._check_kokoro_alive()   # 第二次死亡 → 放棄
+            player._check_kokoro_alive()   # 已放棄：不再動作
+        self.assertEqual(start.call_count, 1)
+        self.assertTrue(player._kokoro_dead)
+
+        tasks = queue.Queue()
+        player._kokoro_tasks = tasks
+        with self.assertLogs("text_to_voice", level="WARNING"):
+            player._play({"text": "你好", "priority": "medium"})
+        self.assertTrue(tasks.empty())
+        self.assertIsNone(player._current_task_id)
+        self.assertFalse(player._is_playing())
+
+    def test_restart_failure_marks_dead(self):
+        player = self._dead_player()
+        with mock.patch.object(player, "_start_kokoro_worker",
+                               side_effect=FileNotFoundError("Kokoro model files missing")), \
+                self.assertLogs("text_to_voice", level="ERROR"):
+            player._check_kokoro_alive()
+        self.assertTrue(player._kokoro_dead)
+        self.assertIsNone(player._kokoro_process)
+
+    def test_pyttsx3_engine_skips_check(self):
+        player = AudioPriorityPlayer(make_config("pyttsx3"), queue.Queue(), queue.Queue())
+        player._kokoro_process = _FakeProcess(alive=False)
+        with mock.patch.object(player, "_start_kokoro_worker") as start:
+            player._check_kokoro_alive()
+        start.assert_not_called()
 
 
 if __name__ == "__main__":

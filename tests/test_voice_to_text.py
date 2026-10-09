@@ -8,6 +8,7 @@ import os
 import sys
 import unittest
 from queue import Queue
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -60,6 +61,87 @@ class TestVoiceToTextConfig(unittest.TestCase):
         cfg["STT"]["device"] = "cpu"
         vtt = VoiceToText(cfg, Queue(), Queue())
         vtt._preload_cuda_libs()  # 應為安全 no-op
+
+
+class _FakeSeg:
+    def __init__(self, text):
+        self.text = text
+
+
+class _FakeModel:
+    def __init__(self, texts=(), exc=None):
+        self._texts = texts
+        self._exc = exc
+
+    def transcribe(self, _audio, **_kwargs):
+        if self._exc is not None:
+            raise self._exc
+        return [_FakeSeg(t) for t in self._texts], None
+
+
+def _drain(q):
+    items = []
+    while not q.empty():
+        items.append(q.get_nowait())
+    return items
+
+
+class TestVoiceToTextSttEvent(unittest.TestCase):
+    """stt_event：STT 的每種結局都回報上游（B7、B8）。"""
+
+    def _make(self):
+        out, events = Queue(), Queue()
+        vtt = VoiceToText(make_config("zh"), Queue(), out, stt_event_queue=events)
+        return vtt, out, events
+
+    def test_load_model_failure_reports_stt_error(self):
+        vtt, _out, events = self._make()
+        fake_fw = mock.MagicMock()
+        fake_fw.WhisperModel.side_effect = RuntimeError("找不到模型")
+        with mock.patch.dict(sys.modules, {"faster_whisper": fake_fw}):
+            vtt._load_model()
+        self.assertIsNone(vtt._model)
+        evs = _drain(events)
+        self.assertEqual(len(evs), 1)
+        self.assertEqual(evs[0]["event"], "stt_error")
+        self.assertIn("找不到模型", evs[0]["message"])
+
+    def test_model_not_loaded_reports_each_segment(self):
+        vtt, out, events = self._make()
+        vtt._process_one(object())
+        vtt._process_one(object())
+        self.assertTrue(out.empty())
+        self.assertEqual(_drain(events), [{"event": "stt_error", "message": "STT 模型未載入"}] * 2)
+
+    def test_empty_result_reports_stt_empty(self):
+        vtt, out, events = self._make()
+        vtt._model = _FakeModel(texts=("  ",))
+        vtt._process_one(object())
+        self.assertTrue(out.empty())
+        self.assertEqual(_drain(events), [{"event": "stt_empty"}])
+
+    def test_text_result_outputs_then_reports_done(self):
+        vtt, out, events = self._make()
+        vtt._model = _FakeModel(texts=("你好", "世界"))
+        vtt._process_one(object())
+        self.assertEqual(_drain(out), ["你好世界"])
+        self.assertEqual(_drain(events), [{"event": "stt_done"}])
+
+    def test_transcribe_exception_reports_stt_error(self):
+        vtt, out, events = self._make()
+        vtt._model = _FakeModel(exc=RuntimeError("cuda 爆了"))
+        vtt._process_one(object())
+        self.assertTrue(out.empty())
+        self.assertEqual(_drain(events), [{"event": "stt_error", "message": "cuda 爆了"}])
+
+    def test_without_event_queue_stays_silent(self):
+        """未提供 stt_event_queue（手機／舊呼叫者）時不發事件也不拋例外。"""
+        out = Queue()
+        vtt = VoiceToText(make_config("zh"), Queue(), out)
+        vtt._process_one(object())
+        vtt._model = _FakeModel(texts=("hi",))
+        vtt._process_one(object())
+        self.assertEqual(_drain(out), ["hi"])
 
 
 if __name__ == "__main__":

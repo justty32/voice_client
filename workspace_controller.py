@@ -1,4 +1,5 @@
-"""
+"""DEPRECATED：自 2026-10-09（重構階段 7b）起無產品碼引用；待使用者裁示（決策 D4）後刪除。
+
 workspace_controller.py — 前端無關的工作區指令派發核心。
 
 管理「當前工作區」指標，並把統一 CRUD 指令（/ws、/show、/clear、/send）轉換為

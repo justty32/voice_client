@@ -5,7 +5,8 @@
 - 消費者：宣告 consumes 並覆寫 handle()，start() 後基底迴圈逐筆取出處理。
 - 同時身兼兩者：在 handle() 內呼叫 emit() 即可。
 
-handle() 拋出例外不會中斷消費迴圈，錯誤會轉為 ui_event 訊息發布。
+handle() 拋出例外不會中斷消費迴圈：基底呼叫 on_handle_error(msg, exc)，
+預設實作把含例外文字的錯誤訊息以 ui_event 發布；子類可覆寫此 hook 改變回報方式。
 """
 
 import logging
@@ -54,16 +55,24 @@ class TunnelModule:
                 continue
             try:
                 self.handle(msg)
-            except Exception:
+            except Exception as exc:
                 log.exception("%s 處理失敗: topic=%s", self.name, msg.topic)
-                self.emit("ui_event", {
-                    "type": "message",
-                    "role": "system",
-                    "text": f"[{self.name} 錯誤] 處理 {msg.topic} 失敗",
-                })
+                self.on_handle_error(msg, exc)
 
     def handle(self, message: Message) -> None:
         raise NotImplementedError
+
+    def on_handle_error(self, message: Message, exc: Exception) -> None:
+        """handle() 拋例外時的回報 hook；預設發 ui_event 系統訊息（含例外文字）。
+
+        core 不依賴 protocol 套件，故 "ui_event" 以字面字串保留於此；
+        子類覆寫本方法即可改走其他回報管道（結構化 error topic 本輪不做）。
+        """
+        self.emit("ui_event", {
+            "type": "message",
+            "role": "system",
+            "text": f"[{self.name} 錯誤] 處理 {message.topic} 失敗：{exc}",
+        })
 
     def stop(self) -> None:
         self._running = False

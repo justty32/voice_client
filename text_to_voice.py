@@ -7,6 +7,9 @@ text_to_voice.py — TTS 優先級播放器
 - Kokoro：長駐子 process 懶載入中／英文 ONNX 模型，避免每句重載；
   透過共享取消編號中斷播放。
 
+拆分：語言分段 → tts/language.py；pyttsx3 driver／worker → tts/pyttsx3_worker.py；
+Kokoro worker → tts/kokoro_worker.py。本檔保留調度器 AudioPriorityPlayer。
+
 優先級：
 - high (0)：立即打斷當前播放，清空佇列中所有 medium/low 任務後優先播出
 - medium (1)：正常排隊
@@ -17,173 +20,17 @@ import configparser
 import heapq
 import logging
 import multiprocessing as mp
-import sys
 import threading
 import time
 from pathlib import Path
 from queue import Empty, Queue
 
+# tts.* 名稱在此 re-export，維持 `from text_to_voice import ...` 相容。
+from tts.kokoro_worker import _kokoro_worker
+from tts.language import _has_cjk, _pick_espeak_voice, _split_language_runs  # noqa: F401
+from tts.pyttsx3_worker import _pick_tts_driver, _tts_worker
+
 log = logging.getLogger(__name__)
-
-
-def _pick_tts_driver() -> str | None:
-    if sys.platform == "win32":
-        return "sapi5"
-    if sys.platform == "darwin":
-        return "nsss"
-    return "espeak"
-
-
-def _has_cjk(text: str) -> bool:
-    """文字中是否含 CJK 漢字（用於 espeak 語言切換）。"""
-    return any("一" <= ch <= "鿿" for ch in text)
-
-
-def _pick_espeak_voice(text: str) -> str:
-    """依文字內容選 espeak 語音：含漢字→普通話(cmn)，否則英文(en)。
-
-    espeak 預設語音為英文，唸中文會逐字拼錯，故需顯式切換。
-    中英混句以「是否含漢字」整句二選一（小修取捨，混句仍非完美）。
-    """
-    return "cmn" if _has_cjk(text) else "en"
-
-
-def _split_language_runs(text: str) -> list[tuple[str, str]]:
-    """把中英混合文字切成 zh/en 片段，標點與空白附著在前一片段。"""
-    runs: list[tuple[str, str]] = []
-    current_lang: str | None = None
-    current: list[str] = []
-
-    for char in text:
-        if _has_cjk(char):
-            lang = "zh"
-        elif char.isascii() and (char.isalpha() or char.isdigit()):
-            lang = "en"
-        else:
-            lang = current_lang
-
-        if lang is not None and current_lang is not None and lang != current_lang:
-            runs.append((current_lang, "".join(current)))
-            current = []
-        if lang is not None:
-            current_lang = lang
-        current.append(char)
-
-    if current:
-        runs.append((current_lang or "en", "".join(current)))
-    return [(lang, chunk) for lang, chunk in runs if chunk.strip()]
-
-
-# ── TTS Worker (runs in subprocess) ───────────────────────────────────────────
-
-def _tts_worker(text: str, rate: int, volume: float, driver: str | None):
-    """在獨立子 process 中合成並播放語音。此函式必須位於模組頂層以支援 spawn。"""
-    try:
-        import pyttsx3
-        engine = pyttsx3.init(driverName=driver) if driver else pyttsx3.init()
-        engine.setProperty("rate", rate)
-        engine.setProperty("volume", volume)
-        # 僅 espeak 需要依語言切 voice；其他 driver（sapi5/nsss）沿用系統預設。
-        if driver == "espeak":
-            try:
-                engine.setProperty("voice", _pick_espeak_voice(text))
-            except Exception:
-                pass  # 切換失敗時退回預設語音，至少英文可用
-        engine.say(text)
-        engine.runAndWait()
-        engine.stop()
-    except Exception as exc:
-        print(f"[tts-worker] {type(exc).__name__}: {exc}", file=sys.stderr)
-
-
-def _kokoro_worker(
-    task_queue,
-    result_queue,
-    cancel_through,
-    settings: dict,
-):
-    """長駐 Kokoro worker：懶載入模型、合成中英片段並以 PyAudio 播放。"""
-    try:
-        import numpy as np
-        import pyaudio
-        from kokoro_onnx import Kokoro
-        from misaki import zh
-    except Exception as exc:
-        result_queue.put(("startup_error", 0, f"{type(exc).__name__}: {exc}"))
-        return
-
-    models: dict[str, object] = {}
-    zh_g2p = None
-
-    def load_model(lang: str):
-        nonlocal zh_g2p
-        if lang in models:
-            return models[lang]
-        if lang == "zh":
-            zh_g2p = zh.ZHG2P(version="1.1")
-            models[lang] = Kokoro(
-                settings["zh_model"],
-                settings["zh_voices"],
-                vocab_config=settings["zh_config"],
-            )
-        else:
-            models[lang] = Kokoro(settings["en_model"], settings["en_voices"])
-        return models[lang]
-
-    while True:
-        task = task_queue.get()
-        if task is None:
-            break
-        task_id, text = task
-        try:
-            chunks = []
-            sample_rate = 24000
-            for lang, chunk in _split_language_runs(text):
-                if task_id <= cancel_through.value:
-                    break
-                kokoro = load_model(lang)
-                if lang == "zh":
-                    phonemes, _ = zh_g2p(chunk)
-                    samples, sample_rate = kokoro.create(
-                        phonemes,
-                        voice=settings["zh_voice"],
-                        speed=settings["speed"],
-                        is_phonemes=True,
-                    )
-                else:
-                    samples, sample_rate = kokoro.create(
-                        chunk,
-                        voice=settings["en_voice"],
-                        speed=settings["speed"],
-                        lang="en-us",
-                    )
-                chunks.append(samples)
-
-            if chunks and task_id > cancel_through.value:
-                audio = np.concatenate(chunks).astype(np.float32, copy=False)
-                volume = settings["volume"]
-                if volume != 1.0:
-                    audio = np.clip(audio * volume, -1.0, 1.0)
-                pa = pyaudio.PyAudio()
-                stream = pa.open(
-                    format=pyaudio.paFloat32,
-                    channels=1,
-                    rate=sample_rate,
-                    output=True,
-                )
-                try:
-                    frame_size = 2048
-                    for offset in range(0, len(audio), frame_size):
-                        if task_id <= cancel_through.value:
-                            break
-                        stream.write(audio[offset:offset + frame_size].tobytes())
-                finally:
-                    stream.stop_stream()
-                    stream.close()
-                    pa.terminate()
-            result_queue.put(("done", task_id, None))
-        except Exception as exc:
-            result_queue.put(("error", task_id, f"{type(exc).__name__}: {exc}"))
 
 
 # ── Dispatcher ────────────────────────────────────────────────────────────────
@@ -193,6 +40,7 @@ class AudioPriorityPlayer:
 
     _PRIORITY = {"high": 0, "medium": 1, "low": 2}
     _POLL = 0.05  # dispatcher 輪詢間隔（秒）
+    _KOKORO_MAX_RESTARTS = 1  # D7：Kokoro worker 死亡後最多自動重啟一次
 
     def __init__(self, config: configparser.ConfigParser, tts_input_queue: Queue, tts_cmd_queue: Queue):
         self._tts_input_queue = tts_input_queue
@@ -233,10 +81,11 @@ class AudioPriorityPlayer:
         self._kokoro_tasks = None
         self._kokoro_results = None
         self._kokoro_cancel_through = None
+        self._kokoro_restarts = 0     # worker 死亡後已自動重啟的次數（上限 _KOKORO_MAX_RESTARTS）
+        self._kokoro_dead = False     # 重啟額度用盡後為 True：之後任務記 log 丟棄
 
         self._dispatcher_thread: threading.Thread | None = None
         self._running = False
-        self._muted = False
 
     def start(self):
         if self._engine == "kokoro":
@@ -251,11 +100,15 @@ class AudioPriorityPlayer:
         self._running = False
         self._stop_current()
         self._stop_kokoro_worker()
+        t = self._dispatcher_thread
+        if t is not None and t is not threading.current_thread():
+            t.join(timeout=1)
 
     # ── Dispatcher loop ────────────────────────────────────────────────
 
     def _dispatcher(self):
         while self._running:
+            self._check_kokoro_alive()
             self._drain_cmds()
             self._drain_input()
             self._drain_kokoro_results()
@@ -276,8 +129,6 @@ class AudioPriorityPlayer:
                 item = self._tts_input_queue.get_nowait()
             except Empty:
                 break
-            if self._muted:
-                continue
             pval = self._PRIORITY.get(item.get("priority", "medium"), 1)
             heapq.heappush(self._heap, (pval, self._counter, item))
             self._counter += 1
@@ -299,6 +150,9 @@ class AudioPriorityPlayer:
         if not text:
             return
         if self._engine == "kokoro":
+            if self._kokoro_dead:
+                log.warning("Kokoro worker 已停用，丟棄 TTS 任務：%.40s…", text)
+                return
             task_id = self._next_task_id
             self._next_task_id += 1
             self._current_task_id = task_id
@@ -358,6 +212,34 @@ class AudioPriorityPlayer:
         )
         self._kokoro_process.start()
 
+    def _check_kokoro_alive(self):
+        """Kokoro worker 存活偵測（B2，D7）。
+
+        worker 意外死亡時：清掉當前任務與待播佇列（否則 _is_playing 永遠為真、TTS 卡死），
+        並在額度內自動重啟；額度用盡或重啟失敗則標記 _kokoro_dead，之後 _play 丟棄任務。
+        """
+        if (self._engine != "kokoro" or self._kokoro_dead
+                or self._kokoro_process is None or self._kokoro_process.is_alive()):
+            return
+        log.error("Kokoro TTS worker 意外結束（exitcode=%s）",
+                  getattr(self._kokoro_process, "exitcode", None))
+        self._current_task_id = None
+        self._heap.clear()
+        if self._kokoro_restarts >= self._KOKORO_MAX_RESTARTS:
+            self._kokoro_dead = True
+            self._kokoro_process = None
+            log.error("Kokoro TTS worker 已重啟 %d 次仍死亡，放棄；之後的 TTS 任務將丟棄。",
+                      self._kokoro_restarts)
+            return
+        self._kokoro_restarts += 1
+        try:
+            self._start_kokoro_worker()
+            log.warning("Kokoro TTS worker 已自動重啟（第 %d 次）。", self._kokoro_restarts)
+        except Exception as exc:
+            self._kokoro_dead = True
+            self._kokoro_process = None
+            log.error("Kokoro TTS worker 重啟失敗，放棄：%s", exc)
+
     def _stop_kokoro_worker(self):
         if self._kokoro_process is None:
             return
@@ -388,12 +270,6 @@ class AudioPriorityPlayer:
         if cmd == "STOP_SPEECH":
             self._stop_current()
             self._heap.clear()
-        elif cmd == "MUTE":
-            self._muted = True
-            self._stop_current()
-            self._heap.clear()
-        elif cmd == "UNMUTE":
-            self._muted = False
         elif cmd == "TERMINATE":
             self._running = False
             self._stop_current()

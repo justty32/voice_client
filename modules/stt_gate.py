@@ -18,6 +18,8 @@ import logging
 
 from core.message import Message
 from core.module import TunnelModule
+from protocol import payloads as P
+from protocol import topics as T
 
 log = logging.getLogger(__name__)
 
@@ -26,7 +28,7 @@ _VALID_MODES = frozenset({"normal", "command"})
 
 class SttGate(TunnelModule):
     name = "stt_gate"
-    consumes = ("stt_text", "gate_ctl")
+    consumes = (T.STT_TEXT, T.GATE_CTL)
 
     def __init__(self):
         super().__init__()
@@ -38,9 +40,9 @@ class SttGate(TunnelModule):
         return self._mode
 
     def handle(self, message: Message) -> None:
-        if message.topic == "gate_ctl":
+        if message.topic == T.GATE_CTL:
             self._handle_gate_ctl(message.payload)
-        elif message.topic == "stt_text":
+        elif message.topic == T.STT_TEXT:
             self._handle_stt_text(message.payload)
 
     def _handle_gate_ctl(self, payload) -> None:
@@ -58,7 +60,7 @@ class SttGate(TunnelModule):
             return
         if self._mode == "normal":
             # 先讓使用者看到辨識結果（port main.py:168）
-            self.emit("ui_event", {"type": "message", "role": "voice", "text": text})
-            self.emit("raw_text", text)
+            self.emit(T.UI_EVENT, P.ui_message("voice", text))
+            self.emit(T.RAW_TEXT, text)
         else:
-            self.emit("commands", {"cmd": "voice", "args": [text]})
+            self.emit(T.COMMANDS, P.command("voice", [text]))

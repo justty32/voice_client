@@ -1,3 +1,9 @@
+"""DEPRECATED：自 2026-10-09（重構階段 7b）起無產品碼引用；待使用者裁示（決策 D4）後刪除。
+
+text_accumulator.py — 舊手機入口的 buffer 執行緒（已由 modules.workspace_manager 取代）。
+測試 tests/test_text_accumulator.py、tests/test_clipboard_commands.py 暫時保留。
+"""
+
 import configparser
 import logging
 import os

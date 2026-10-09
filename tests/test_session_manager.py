@@ -8,7 +8,9 @@ import json
 import os
 import sys
 import tempfile
+import threading
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -211,6 +213,84 @@ class TestHistoryEdit(SessionManagerTestBase):
         for h in sm.get_current_session()["history"]:
             self.assertEqual(len(h), 3)
 
+
+
+class TestThreadSafetyAndPersistence(SessionManagerTestBase):
+    """階段 3：鎖、原子寫入、壞檔備份、深複本（B3、B4）。"""
+
+    def test_concurrent_add_message(self):
+        sm = SessionManager(self.cfg)
+        sm.new_session("c")
+
+        def worker(tag):
+            for i in range(50):
+                sm.add_message("user", f"{tag}-{i}")
+
+        threads = [threading.Thread(target=worker, args=(t,)) for t in range(4)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=10)
+        self.assertEqual(sm.message_count(), 200)
+        with open(self.sessions_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        self.assertEqual(len(data["sessions"]["c"]["history"]), 200)
+        leftovers = [n for n in os.listdir(os.path.dirname(self.sessions_file)) if n.endswith(".tmp")]
+        self.assertEqual(leftovers, [])
+
+    def test_save_is_atomic_via_replace(self):
+        """寫入一律經暫存檔＋os.replace，正式檔不會被直接以 "w" 開啟。"""
+        sm = SessionManager(self.cfg)
+        real_replace = os.replace
+        calls = []
+
+        def spy(src, dst):
+            calls.append((src, dst))
+            return real_replace(src, dst)
+
+        with mock.patch("session_manager.os.replace", side_effect=spy):
+            sm.new_session("a")
+        self.assertIn((f"{self.sessions_file}.tmp", self.sessions_file), calls)
+
+    def test_corrupt_file_backed_up(self):
+        os.makedirs(os.path.dirname(self.sessions_file), exist_ok=True)
+        with open(self.sessions_file, "w", encoding="utf-8") as f:
+            f.write("garbage")
+        with self.assertLogs("session_manager", level="ERROR"):
+            sm = SessionManager(self.cfg)
+        self.assertEqual(sm.list_sessions(), [])
+        names = os.listdir(os.path.dirname(self.sessions_file))
+        backups = [n for n in names if n.startswith(".sessions.json.corrupt-")]
+        self.assertEqual(len(backups), 1)
+        with open(os.path.join(os.path.dirname(self.sessions_file), backups[0]), encoding="utf-8") as f:
+            self.assertEqual(f.read(), "garbage")
+
+    def test_new_session_same_title_rejected(self):
+        sm = SessionManager(self.cfg)
+        self.assertIsNotNone(sm.new_session("default"))
+        sm.add_message("user", "keep")
+        sm.new_session("other")
+        self.assertIsNone(sm.new_session("default"))
+        self.assertEqual(sm.current_title, "other")
+        sm.switch_session("default")
+        self.assertEqual([m[1] for m in sm.get_current_session()["history"]], ["keep"])
+
+    def test_next_auto_title(self):
+        sm = SessionManager(self.cfg)
+        self.assertEqual(sm.next_auto_title(), "session_1")
+        sm.new_session("session_1")
+        sm.new_session("session_3")
+        self.assertEqual(sm.next_auto_title(), "session_2")
+
+    def test_get_current_session_returns_copy(self):
+        sm = SessionManager(self.cfg)
+        sm.new_session("s")
+        sm.add_message("user", "x")
+        snap = sm.get_current_session()
+        snap["history"].append(["user", "injected", "t"])
+        snap["title"] = "hacked"
+        self.assertEqual(sm.message_count(), 1)
+        self.assertEqual(sm.get_current_session()["title"], "s")
 
 if __name__ == "__main__":
     unittest.main()

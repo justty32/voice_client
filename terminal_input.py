@@ -2,9 +2,12 @@ import configparser
 import threading
 from queue import Queue
 
+from protocol.commands import SLASH_COMMANDS
+
 EXIT_SIGNAL = "__EXIT__"
 
-_SLASH_COMMANDS = {"/new", "/switch", "/list", "/exit", "/help", "/clear", "/show", "/send", "/stop", "/export", "/import", "/delete", "/save", "/concat", "/to_top", "/load", "/rename", "/history", "/ws", "/copy", "/paste", "/del", "/move"}
+# 舊名保留給可能的匯入者；單一來源在 protocol/commands.py。
+_SLASH_COMMANDS = SLASH_COMMANDS
 
 
 class TerminalInput:
@@ -22,6 +25,8 @@ class TerminalInput:
         self._thread.start()
 
     def stop(self):
+        # 不 join：工作執行緒阻塞在 input()，stop() 無法喚醒它；
+        # 執行緒為 daemon，隨行程結束。
         self._running = False
 
     def _loop(self):

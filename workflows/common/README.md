@@ -4,4 +4,4 @@
 |---|---|
 | [conventions.md](conventions.md) | 程式碼與文件維護鏈 |
 | [gotchas.md](gotchas.md) | 跨工作流踩坑 |
-| [code-map/CODE_MAP.md](code-map/CODE_MAP.md) | 程式碼導航 |
+| [code-map/CODE_MAP.md](code-map/CODE_MAP.md) | 程式碼導航（人工）；`code-map/codemap.py` 自動掃描 |

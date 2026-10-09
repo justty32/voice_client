@@ -6,8 +6,7 @@ plan 是動工前的逐步施工單，需列明檔案、協定、測試與驗證
 
 ## 現有計畫
 
-- `data_tunnel_design.md` 與 `data_tunnel_stage1_plan.md`～`stage5_plan.md`：已落地的桌面 Data Tunnel 設計／施工歷史。
-- `workspace_unification.md`：工作區統一設計與歷史脈絡。
-- `mobile.md`、`mobile_improve.md`：手機模式設計與改進清單。
+- [mobile_improve.md](mobile_improve.md)：手機 UX 待改進清單（字體縮放、長按編輯、送出鈕圖示），尚未實作。
+- [refactor_next/README.md](refactor_next/README.md)：下一步重構計畫（2026-10-09）——協定單一來源、I/O 測試安全網、共享狀態加鎖、錯誤閉環、組裝層、派發表、手機對齊，分 9 個可獨立 commit 的階段，含決策點預設值。
 
-已完成且不再維護的計畫可逐步移到 [archive/](archive/README.md)；本次導入工作流不搬動既有文件。
+已完成或被取代的計畫移到 [archive/](archive/README.md) 凍結，現役文件不再連過去。

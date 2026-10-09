@@ -64,3 +64,13 @@ def test_local_control_debounces_duplicate_command(tmp_path, monkeypatch):
             pass
     finally:
         control.stop()
+
+
+def test_loop_returns_when_socket_already_closed(tmp_path, monkeypatch):
+    # B9：stop() 把 _socket 設為 None 時，_loop 應直接結束而非拋 AssertionError
+    monkeypatch.setattr(local_control, "socket_path", lambda: tmp_path / "control.sock")
+    control = local_control.LocalControl(Queue())
+    control._running = True
+    control._socket = None
+
+    control._loop()  # 不得拋例外

@@ -3,20 +3,23 @@ mobile_server.py — Mobile Web 版後端
 
 FastAPI + WebSocket，讓手機瀏覽器連線使用語音客戶端。
 
-保留：VoiceToText, TextAccumulator, SummaryGenerator, HttpClient, SessionManager
-取代：Recorder → MediaRecorder (前端), TuiRenderer → HTML UI, pyttsx3 → SpeechSynthesis (前端)
+與桌面共用 Data Tunnel：`build_core()` 的 Exchange＋原生模組（WorkspaceManager、SttGate、
+CommandRouter、ChatFlow、CliTextBridge）＋VoiceToText、SummaryGenerator、HttpClient。
+只替換邊緣：Recorder → MediaRecorder（前端）、TuiRenderer → HTML UI、
+AudioPriorityPlayer → SpeechSynthesis（前端），見 mobile/edge.py。
+
+本檔提供 `create_app(state)`（lifespan、static 掛載、`/`、`/ws`）與啟動入口；
+狀態組裝在 `mobile.state.build_mobile_state()`，其餘細節在 mobile/ 套件。
+匯入本模組沒有副作用：`__main__` 才載入 config、建立元件與 app。
+
+連線語意（B6）：同時只服務最新的一條 WebSocket 連線；新連線到來時關閉舊連線。
+整個 app 只有一個輸出 pusher（lifespan 建立），推送對象是 `state.current_ws`。
 """
 
 import asyncio
-import io
-import json
 import logging
 import os
-import queue
-import shutil
-import socket
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
 
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -24,575 +27,106 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from config import load_config
-from http_client import HttpClient
-from session_manager import SessionManager
-from summary_generator import SummaryGenerator
-from text_accumulator import TextAccumulator
-from voice_to_text import VoiceToText
-from workspace_controller import WorkspaceController
+from mobile import audio as _mobile_audio
+from mobile.audio import _FFMPEG_MISSING_HINT, _check_ffmpeg
+from mobile.inputs import _handle_audio, _handle_text
+from mobile.net import _get_lan_ip
+from mobile.outputs import _output_pusher
+from mobile.push import _push_sessions_refresh, _push_status
+from mobile.ssl_cert import _ensure_self_signed_cert
+from mobile.state import MobileState, autosave_buffer, build_mobile_state
 
 log = logging.getLogger("mobile_server")
 
 
-# ── Setup ──────────────────────────────────────────────────────────────────
+def create_app(state: MobileState, *, static_dir: str = "static") -> FastAPI:
+    """建立手機 FastAPI app；所有元件與 queue 取自 `state`。"""
 
-def _setup_logging(cfg):
-    level_str = cfg.get("LOGGING", "level", fallback="INFO")
-    level = getattr(logging, level_str.upper(), logging.INFO)
-    log_file = cfg.get("WORKSPACE", "log_file", fallback="output/system.log")
-    os.makedirs(os.path.dirname(log_file), exist_ok=True)
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        handlers=[
-            logging.FileHandler(log_file, encoding="utf-8"),
-            logging.StreamHandler(),
-        ],
-    )
+    # ── FastAPI lifespan ───────────────────────────────────────────────────
 
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        # ffmpeg 旗標存放於 mobile.audio（_to_wav 讀取處）
+        _mobile_audio._FFMPEG_AVAILABLE = _check_ffmpeg()
+        if _mobile_audio._FFMPEG_AVAILABLE:
+            log.info("ffmpeg available — audio upload will work.")
+        else:
+            log.error("ffmpeg NOT found. %s", _FFMPEG_MISSING_HINT)
 
-_FFMPEG_AVAILABLE: bool = False
-_FFMPEG_MISSING_HINT = (
-    "ffmpeg 未安裝。Linux: sudo apt install ffmpeg ｜ macOS: brew install ffmpeg "
-    "｜ Windows: choco install ffmpeg"
-)
-
-
-def _check_ffmpeg() -> bool:
-    """啟動前檢查 ffmpeg 是否可用；pydub 依賴它做音訊解碼。"""
-    return shutil.which("ffmpeg") is not None or shutil.which("avconv") is not None
-
-
-def _to_wav(data: bytes) -> tuple[io.BytesIO | None, str | None]:
-    """瀏覽器 MediaRecorder 輸出（WebM/MP4）→ 16kHz mono WAV。需要 ffmpeg。
-    回傳 (buffer, error_msg)；成功時 error_msg 為 None。
-    """
-    if not _FFMPEG_AVAILABLE:
-        return None, _FFMPEG_MISSING_HINT
-    try:
-        from pydub import AudioSegment
-        seg = AudioSegment.from_file(io.BytesIO(data))
-        seg = seg.set_frame_rate(16000).set_channels(1).set_sample_width(2)
-        buf = io.BytesIO()
-        seg.export(buf, format="wav")
-        buf.seek(0)
-        return buf, None
-    except FileNotFoundError as exc:
-        # pydub 呼叫 ffmpeg 時找不到可執行檔
-        log.error("Audio conversion: ffmpeg missing: %s", exc)
-        return None, _FFMPEG_MISSING_HINT
-    except Exception as exc:
-        log.error("Audio conversion failed: %s", exc)
-        return None, f"音訊解碼失敗：{exc}"
-
-
-# ── Module-level state (single-user server) ────────────────────────────────
-
-_cfg = load_config()
-_setup_logging(_cfg)
-
-_audio_queue          = queue.Queue()
-_stt_output_queue     = queue.Queue()
-_acc_input_queue      = queue.Queue()
-_acc_cmd_queue        = queue.Queue()
-_acc_output_queue     = queue.Queue()
-_summary_queue        = queue.Queue()
-_summary_output_queue = queue.Queue()
-_send_queue           = queue.Queue()
-_recv_queue           = queue.Queue()
-_ui_event_queue       = queue.Queue()  # 事件 → WebSocket 推送
-
-_session_manager = SessionManager(_cfg)
-if not _session_manager.current_title:
-    if not _session_manager.switch_session("default"):
-        _session_manager.new_session("default")
-
-_voice_to_text    = VoiceToText(_cfg, _audio_queue, _stt_output_queue)
-_text_accumulator = TextAccumulator(_cfg, _acc_input_queue, _acc_cmd_queue, _acc_output_queue)
-_summary_gen      = SummaryGenerator(_cfg, _summary_queue, _summary_output_queue)
-_http_client      = HttpClient(_cfg, _send_queue, _recv_queue, _session_manager)
-
-_export_dir = os.path.dirname(_cfg.get("WORKSPACE", "export_file", fallback="output/export.json")) or "."
-_wsc = WorkspaceController(_session_manager, export_dir=_export_dir)
-
-_summary_threshold = _cfg.getint("SLM", "summary_threshold", fallback=20)
-_slm_enabled = _cfg.getboolean("SLM", "enabled", fallback=True)
-
-
-# ── Push helpers ───────────────────────────────────────────────────────────
-
-def _push(event: dict):
-    _ui_event_queue.put(event)
-
-def _push_msg(role: str, text: str):
-    _push({"type": "message", "role": role, "text": text})
-
-def _push_status(text: str):
-    _push({"type": "status", "text": text})
-
-def _push_tts(text: str, priority: str = "medium"):
-    _push({"type": "tts", "text": text, "priority": priority})
-
-def _push_system(text: str):
-    _push_msg("system", text)
-
-def _apply_ws_result(res):
-    """把 WorkspaceController 的派發結果套用到 mobile 的推送通道。"""
-    for role, text in res.messages:
-        _push_msg(role, text)
-    for c in res.acc_cmds:
-        _acc_cmd_queue.put(c)
-    if res.clear_ui:
-        _push({"type": "clear"})
-        _push_status("待機")
-
-
-# ── FastAPI lifespan ───────────────────────────────────────────────────────
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    global _FFMPEG_AVAILABLE
-    _FFMPEG_AVAILABLE = _check_ffmpeg()
-    if _FFMPEG_AVAILABLE:
-        log.info("ffmpeg available — audio upload will work.")
-    else:
-        log.error("ffmpeg NOT found. %s", _FFMPEG_MISSING_HINT)
-
-    _voice_to_text.start()
-    _text_accumulator.start()
-    _summary_gen.start()
-    _http_client.start()
-    log.info("Mobile server started. Session: %s", _session_manager.current_title)
-    yield
-    _voice_to_text.stop()
-    _text_accumulator.stop()
-    _summary_gen.stop()
-    _http_client.stop()
-    log.info("Mobile server stopped.")
-
-
-app = FastAPI(lifespan=lifespan)
-
-if os.path.exists("static"):
-    app.mount("/static", StaticFiles(directory="static"), name="static")
-
-
-@app.get("/")
-async def root():
-    return FileResponse("static/index.html")
-
-
-# ── WebSocket ──────────────────────────────────────────────────────────────
-
-@app.websocket("/ws")
-async def websocket_handler(ws: WebSocket):
-    await ws.accept()
-    log.info("Client connected: %s", ws.client)
-
-    # 連線後推送初始狀態
-    _push_status("待機")
-    _push({"type": "sessions_refresh"})
-
-    pusher = asyncio.create_task(_output_pusher(ws))
-    try:
-        while True:
-            msg = await ws.receive()
-            if msg.get("bytes"):
-                # 音訊 blob（binary frame）→ 轉換 → audio_queue
-                await asyncio.to_thread(_handle_audio, msg["bytes"])
-            elif msg.get("text"):
-                _handle_text(msg["text"])
-    except WebSocketDisconnect:
-        log.info("Client disconnected")
-    finally:
-        pusher.cancel()
+        state.lifecycle.start_all()
+        # B6：全域唯一的輸出 pusher，推送對象為 state.current_ws
+        pusher = asyncio.create_task(_output_pusher(state))
+        log.info("Mobile server started. Session: %s", state.session_manager.current_title)
         try:
-            await pusher
-        except asyncio.CancelledError:
-            pass
-
-
-# ── Input handlers ─────────────────────────────────────────────────────────
-
-def _handle_audio(data: bytes):
-    """在 thread 中執行音訊轉換（pydub 為同步操作）。"""
-    _push_status("處理中")
-    wav, err = _to_wav(data)
-    if wav:
-        _audio_queue.put(wav)
-        log.debug("Audio queued (%d bytes raw)", len(data))
-    else:
-        if err:
-            _push_msg("error", f"[音訊錯誤] {err}")
-        _push_status("待機")
-
-
-def _handle_text(raw: str):
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError:
-        return
-
-    t = data.get("type")
-    if t == "text":
-        content = data.get("content", "").strip()
-        if content:
-            _push_msg("user", content)
-            _acc_input_queue.put({"type": "text", "text": content, "msg_type": "TextChat"})
-    elif t == "cmd":
-        _route_cmd(data.get("cmd", ""), data.get("args", []))
-    elif t == "signal":
-        _route_signal(data.get("signal", ""))
-    elif t == "clipboard_data":
-        # 前端讀取瀏覽器剪貼簿後回傳的內容 → 貼到當前工作區
-        _mobile_paste(data.get("text", ""))
-
-
-def _mobile_copy():
-    """/copy：把當前工作區文字送到前端寫入瀏覽器剪貼簿。"""
-    cur = _wsc.current
-    if cur == "buffer":
-        # buffer 在自己的執行緒中，透過佇列安全地取出文字（見 _output_pusher buffer_text）
-        _acc_cmd_queue.put({"cmd": "emit_text"})
-        return
-    if cur == "stt":
-        if _wsc.stt.is_empty():
-            _push_system("[stt 工作區是空的，沒有可複製的內容]")
-            return
-        text = _wsc.stt.flatten(seg_sep=" ", entry_sep="\n")
-    else:  # chat
-        text = _session_manager.get_history()
-    _push({"type": "clipboard_write", "text": text})
-
-
-def _mobile_paste(text: str):
-    """把前端回傳的剪貼簿文字貼到當前工作區（每個非空行為一筆）。"""
-    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
-    cur = _wsc.current
-    if cur == "buffer":
-        for ln in lines:
-            _acc_input_queue.put({"type": "text", "text": ln, "msg_type": "TextChat"})
-        _push_system(f"[系統] 已從剪貼簿貼上 {len(lines)} 筆到暫存區。")
-    elif cur == "stt":
-        for ln in lines:
-            _wsc.stt.append(ln)
-        _push_system(f"[系統] 已從剪貼簿貼上 {len(lines)} 筆到 stt 工作區。")
-    else:
-        _push_system("[系統] chat 工作區不支援貼上（請切換到 buffer 或 stt）。")
-
-
-def _route_signal(signal: str):
-    if signal == "QUICK_SEND":
-        _acc_cmd_queue.put({"cmd": "flush", "msg_type": "TextChat"})
-    elif signal == "FORCE_STOP_TTS":
-        # 通知前端中斷瀏覽器 TTS 播放（前端按鈕本地也會 cancel，這裡確保閉環）。
-        _push({"type": "tts_control", "action": "stop"})
-
-
-def _route_cmd(cmd: str, args: list):
-    if cmd == "/new":
-        title = " ".join(args) if args else f"session_{len(_session_manager.list_sessions()) + 1}"
-        _session_manager.new_session(title)
-        _push_system(f"新建對話: {title}")
-        _push({"type": "sessions_refresh"})
-
-    elif cmd == "/switch":
-        title = " ".join(args) if args else "default"
-        if _session_manager.switch_session(title):
-            _push_system(f"切換至: {title}")
-        else:
-            _push_system(f"找不到對話: {title}")
-        _push({"type": "sessions_refresh"})
-
-    elif cmd == "/list":
-        sessions = _session_manager.list_sessions()
-        text = "對話列表:\n" + "\n".join(f"  - {s}" for s in sessions)
-        text += f"\n\n當前 session：{_session_manager.current_title or '無'}"
-        _push_system(text)
-
-    elif cmd == "/delete":
-        title = " ".join(args)
-        if not title:
-            _push_system("用法: /delete [對話名稱]")
-        else:
-            _, msg = _session_manager.delete_session(title)
-            _push_system(msg)
-            _push({"type": "sessions_refresh"})
-
-    elif cmd == "/save":
-        _, msg = _session_manager.save_session_to_file(" ".join(args) if args else None)
-        _push_system(msg)
-
-    elif cmd == "/load":
-        if not args:
-            _push_system("用法: /load [檔名]")
-        else:
-            _, msg = _session_manager.load_session_from_file(" ".join(args))
-            _push_system(msg)
-            _push({"type": "sessions_refresh"})
-
-    elif cmd == "/rename":
-        if len(args) < 2:
-            _push_system("用法: /rename [舊名稱] [新名稱]")
-        else:
-            _, msg = _session_manager.rename_session(args[0], args[1])
-            _push_system(msg)
-            _push({"type": "sessions_refresh"})
-
-    elif cmd == "/history":
-        _push_system(_session_manager.get_history())
-
-    # ── 工作區統一指令（當前工作區感知）─────────────────────────────
-    elif cmd == "/ws":
-        _apply_ws_result(_wsc.handle_ws(args, _text_accumulator.count()))
-    elif cmd == "/show":
-        _apply_ws_result(_wsc.handle_show())
-    elif cmd == "/clear":
-        _apply_ws_result(_wsc.handle_clear(args))
-    elif cmd == "/concat":
-        _apply_ws_result(_wsc.handle_concat())
-    elif cmd == "/to_top":
-        _apply_ws_result(_wsc.handle_totop(args))
-    elif cmd == "/del":
-        _apply_ws_result(_wsc.handle_del(args))
-    elif cmd == "/move":
-        _apply_ws_result(_wsc.handle_move(args))
-    elif cmd == "/send":
-        _apply_ws_result(_wsc.handle_send())
-    elif cmd == "/export":
-        _apply_ws_result(_wsc.handle_export(args))
-    elif cmd == "/import":
-        _apply_ws_result(_wsc.handle_import(args))
-
-    elif cmd == "/copy":
-        _mobile_copy()
-    elif cmd == "/paste":
-        _push({"type": "clipboard_read"})  # 請前端讀取剪貼簿並回傳 clipboard_data
-
-    elif cmd == "/stop":
-        # 前端 TTS 由瀏覽器 SpeechSynthesis 播放，通知前端中斷。
-        _push({"type": "tts_control", "action": "stop"})
-
-    elif cmd == "/help":
-        _push_system(
-            "/new /switch /list /delete /save /load /rename /history "
-            "/ws /show /clear /del /move /to_top /concat /send /export /import /copy /paste /stop /help"
-        )
-
-    else:
-        _push_system(f"未知指令: {cmd}")
-
-
-# ── Response handler ───────────────────────────────────────────────────────
-
-def _handle_response(response: dict):
-    resp_type = response.get("type", "ChatReply")
-
-    if resp_type == "ChatReply":
-        full = response.get("Content", {}).get("full_response", "")
-        if full:
-            _session_manager.add_message("assistant", full)
-            _push_msg("assistant", full)
-            # SLM 停用時不走摘要流程；短回覆也直接播原文
-            if not _slm_enabled or len(full) < _summary_threshold:
-                _push_tts(full, "medium")
-            else:
-                _summary_queue.put({"cmd": "summary", "text": full,
-                                    "title": _session_manager.current_title})
-        _push_status("待機")
-
-    elif resp_type == "StatusUpdate":
-        text = response.get("text", "")
-        _push_status(text)
-        _push_tts(text, "low")
-
-    elif resp_type == "Error":
-        msg = response.get("message", "Unknown error")
-        _push_msg("error", f"[錯誤] {msg}")
-        _push_tts(f"發生錯誤：{msg}", "high")
-        _push_status("待機")
-
-
-# ── Output pusher (async task) ─────────────────────────────────────────────
-
-async def _output_pusher(ws: WebSocket):
-    """每 50ms 輪詢所有 output queue，將事件推送至 WebSocket 前端。"""
-    while True:
-        try:
-            # 1. STT output → voice 訊息 + 加入 accumulator
-            while not _stt_output_queue.empty():
-                text = _stt_output_queue.get_nowait()
-                if text.strip():
-                    _push_msg("voice", text)
-                    _wsc.stt.append(text)  # 擷取原始辨識文字至 stt 工作區
-                    _acc_input_queue.put({"type": "text", "text": text, "msg_type": "VoiceChat"})
-
-            # 2. Accumulator output → HTTP send
-            while not _acc_output_queue.empty():
-                item = _acc_output_queue.get_nowait()
-                if item.get("type") == "payload":
-                    payload = item["payload"]
-                    payload["Title"] = _session_manager.current_title or "default"
-                    payload.setdefault("Metadata", {})["ClientTime"] = (
-                        datetime.now(timezone.utc).isoformat()
-                    )
-                    _session_manager.add_message("user", payload["Content"])
-                    _push_msg("sending", f"[傳送內容] {payload['Content']}")
-                    _send_queue.put(payload)
-                    _push_status("傳送中")
-                elif item.get("type") == "buffer_peek":
-                    _push_system(item["text"])
-                elif item.get("type") == "buffer_text":
-                    # buffer 文字 → 通知前端寫入瀏覽器剪貼簿
-                    _push({"type": "clipboard_write", "text": item["text"]})
-
-            # 3. Summary output → 摘要訊息 + TTS
-            while not _summary_output_queue.empty():
-                item = _summary_output_queue.get_nowait()
-                if item.get("type") == "status":
-                    _push_status(item["text"])
-                elif item.get("type") == "summary":
-                    display = f"回覆摘要：{item['text']}"
-                    _push_msg("summary", display)
-                    _push_tts(display, "medium")
-
-            # 4. HTTP response
-            while not _recv_queue.empty():
-                _handle_response(_recv_queue.get_nowait())
-
-            # 5. 送出所有 UI events（含上面各步驟新產生的）
-            while not _ui_event_queue.empty():
-                event = _ui_event_queue.get_nowait()
-                if event["type"] == "sessions_refresh":
-                    sessions = _session_manager.list_sessions()
-                    current = _session_manager.current_title or ""
-                    await ws.send_json({"type": "sessions", "list": sessions, "current": current})
-                else:
-                    await ws.send_json(event)
-
-        except Exception as exc:
-            log.error("Output pusher error: %s", exc)
-
-        await asyncio.sleep(0.05)
-
-
-# ── Network helpers ────────────────────────────────────────────────────────
-
-def _get_lan_ip() -> str:
-    """用 UDP socket 取得本機對外 LAN IP（不實際送封包）。
-    避開 `gethostbyname(gethostname())` 在 Linux 上被 `/etc/hosts` 的
-    `127.0.1.1 hostname` 欺騙成 loopback 的問題。
-    """
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        s.settimeout(0.5)
-        # 8.8.8.8:80 只是路由選擇用的目的，不會真的送封包
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-        if ip and not ip.startswith("127."):
-            return ip
-    except Exception:
-        pass
-    finally:
-        try:
-            s.close()
-        except Exception:
-            pass
-    # fallback
-    try:
-        ip = socket.gethostbyname(socket.gethostname())
-        if ip and not ip.startswith("127."):
-            return ip
-    except Exception:
-        pass
-    return "127.0.0.1"
-
-
-# ── SSL cert generation ────────────────────────────────────────────────────
-
-def _ensure_self_signed_cert(cert_path: str, key_path: str) -> bool:
-    """生成自簽 SSL 憑證（如果尚未存在）。需要 cryptography 套件。
-    憑證包含本機 IP 的 SAN，讓手機瀏覽器可接受（需手動信任一次）。
-    """
-    if os.path.exists(cert_path) and os.path.exists(key_path):
-        log.info("Using existing SSL cert: %s", cert_path)
-        return True
-    try:
-        import datetime
-        import ipaddress
-
-        from cryptography import x509
-        from cryptography.hazmat.primitives import hashes, serialization
-        from cryptography.hazmat.primitives.asymmetric import rsa
-        from cryptography.x509.oid import NameOID
-
-        log.info("Generating self-signed SSL certificate...")
-
-        key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-
-        # 取得本機 IP，加入 SAN 讓手機可以用 IP 連線
-        local_ip = _get_lan_ip()
-
-        subject = issuer = x509.Name([
-            x509.NameAttribute(NameOID.COMMON_NAME, "VoiceClient"),
-        ])
-
-        san_entries = [
-            x509.DNSName("localhost"),
-            x509.IPAddress(ipaddress.IPv4Address("127.0.0.1")),
-        ]
-        if local_ip != "127.0.0.1":
+            yield
+        finally:
+            pusher.cancel()
             try:
-                san_entries.append(x509.IPAddress(ipaddress.IPv4Address(local_ip)))
-            except Exception:
+                await pusher
+            except asyncio.CancelledError:
                 pass
+            state.lifecycle.stop_all()
+            # D10：停機時 buffer 非空則匯出 _buffer_temp.json（桌面不做）
+            autosave_buffer(state)
+            log.info("Mobile server stopped.")
 
-        cert = (
-            x509.CertificateBuilder()
-            .subject_name(subject)
-            .issuer_name(issuer)
-            .public_key(key.public_key())
-            .serial_number(x509.random_serial_number())
-            .not_valid_before(datetime.datetime.now(datetime.timezone.utc))
-            .not_valid_after(
-                datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=3650)
-            )
-            .add_extension(
-                x509.SubjectAlternativeName(san_entries),
-                critical=False,
-            )
-            .sign(key, hashes.SHA256())
-        )
+    app = FastAPI(lifespan=lifespan)
 
-        os.makedirs(os.path.dirname(cert_path) or ".", exist_ok=True)
-        with open(key_path, "wb") as f:
-            f.write(key.private_bytes(
-                serialization.Encoding.PEM,
-                serialization.PrivateFormat.TraditionalOpenSSL,
-                serialization.NoEncryption(),
-            ))
-        # 私鑰僅限擁有者讀寫（POSIX）。Windows 上 chmod 幾乎 no-op 但不會壞。
+    if os.path.exists(static_dir):
+        app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+    @app.get("/")
+    async def root():
+        return FileResponse(os.path.join(static_dir, "index.html"))
+
+    # ── WebSocket ──────────────────────────────────────────────────────────
+
+    @app.websocket("/ws")
+    async def websocket_handler(ws: WebSocket):
+        await ws.accept()
+        log.info("Client connected: %s", ws.client)
+
+        # B6：只服務最新連線——先改指向，再關閉舊連線
+        old = state.current_ws
+        state.current_ws = ws
+        if old is not None:
+            try:
+                await old.close()
+                log.info("Previous client closed (replaced by new connection)")
+            except Exception as exc:
+                log.debug("Closing previous client failed: %s", exc)
+
+        # 連線後推送初始狀態
+        _push_status(state, "待機")
+        _push_sessions_refresh(state)
+
         try:
-            os.chmod(key_path, 0o600)
-        except OSError as exc:
-            log.warning("chmod 600 on %s failed: %s", key_path, exc)
-        with open(cert_path, "wb") as f:
-            f.write(cert.public_bytes(serialization.Encoding.PEM))
+            while True:
+                msg = await ws.receive()
+                if msg.get("type") == "websocket.disconnect":
+                    log.info("Client disconnected")
+                    break
+                if msg.get("bytes"):
+                    # 音訊 blob（binary frame）→ 轉換 → audio_out（同 Recorder 輸出）
+                    await asyncio.to_thread(_handle_audio, state, msg["bytes"])
+                elif msg.get("text"):
+                    _handle_text(state, msg["text"])
+        except WebSocketDisconnect:
+            log.info("Client disconnected")
+        finally:
+            if state.current_ws is ws:
+                state.current_ws = None
 
-        log.info("SSL cert generated: %s (valid 10 years, IP: %s)", cert_path, local_ip)
-        return True
-
-    except ImportError:
-        log.error("SSL cert generation requires the 'cryptography' package: pip install cryptography")
-        return False
-    except Exception as exc:
-        log.error("SSL cert generation failed: %s", exc)
-        return False
+    return app
 
 
 # ── Entry point ────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
+    state = build_mobile_state(load_config())
+    _cfg = state.cfg
+    app = create_app(state)
+
     host = _cfg.get("MOBILE", "host", fallback="0.0.0.0")
     port = _cfg.getint("MOBILE", "port", fallback=8080)
     use_ssl = _cfg.getboolean("MOBILE", "ssl", fallback=True)
@@ -621,4 +155,4 @@ if __name__ == "__main__":
         log.info("  (手機第一次連線需接受憑證警告)")
     log.info("=" * 50)
 
-    uvicorn.run("mobile_server:app", host=host, port=port, reload=False, **ssl_kwargs)
+    uvicorn.run(app, host=host, port=port, reload=False, **ssl_kwargs)

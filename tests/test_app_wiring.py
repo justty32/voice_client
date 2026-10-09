@@ -1,4 +1,4 @@
-"""接線整合測試：用裸 queue + native 模組驗證 wire() 的所有代表性路由。
+"""接線整合測試：用 build_core() 組出的裸 queue + native 模組驗證 wire() 的所有代表性路由。
 
 不啟動任何真實硬體模組（Recorder / VoiceToText / TuiRenderer 等）——
 這些模組的 queue 僅作為裸 queue 存在，供測試直接讀寫。
@@ -16,14 +16,10 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app import wire, _dict_to_ui_event
+from app import _dict_to_ui_event
+from app_wiring.assembly import build_core
 from core.exchange import Exchange
 from core.endpoint import Inbox
-from modules.workspace_manager import WorkspaceManager
-from modules.stt_gate import SttGate
-from modules.command_router import CommandRouter
-from modules.chat_flow import ChatFlow
-from modules.cli_text_bridge import CliTextBridge
 from session_manager import SessionManager
 
 # UiEvent 延遲匯入（tui_renderer 依賴 rich，測試環境可能未安裝）；
@@ -79,72 +75,26 @@ class TestAppWiring(unittest.TestCase):
 
         # ── SessionManager（用暫存路徑，不汙染主目錄） ─────────────────
         self.session_manager = SessionManager(config)
-        if not self.session_manager.current_title:
-            if not self.session_manager.switch_session("default"):
-                self.session_manager.new_session("default")
 
-        # ── 裸 queue（代替真實硬體模組的 I/O） ──────────────────────
-        self.key_signal        = queue.Queue()
-        self.cli_cmd           = queue.Queue()
-        self.cli_text          = queue.Queue()
-        self.recorder_cmd      = queue.Queue()
-        self.audio_out         = queue.Queue()
-        self.audio_in          = queue.Queue()
-        self.recorder_event    = queue.Queue()
-        self.stt_out           = queue.Queue()
-        self.http_send         = queue.Queue()
-        self.http_recv         = queue.Queue()
-        self.summary_in        = queue.Queue()
-        self.summary_out_q     = queue.Queue()
-        self.tts_input         = queue.Queue()
-        self.tts_cmd           = queue.Queue()
-        self.ui_event_q        = queue.Queue()
-
-        # ── Export dir ────────────────────────────────────────────────
-        export_dir = self._tmpdir
-
-        # ── Native modules ────────────────────────────────────────────
-        self.wm = WorkspaceManager()
-        self.stt_gate = SttGate()
-        self.command_router = CommandRouter(self.wm, self.session_manager, export_dir)
-        self.chat_flow = ChatFlow(
-            self.session_manager,
-            summary_threshold=20,
-            slm_enabled=False,
+        # ── build_core()：queue、default 對話、原生模組、Exchange、wire() ──
+        parts = build_core(
+            config,
+            session_manager=self.session_manager,
+            exchange=Exchange(idle_sleep=0.001),
         )
-        self.cli_bridge = CliTextBridge()
+        self.parts = parts
+        self.exchange = parts.exchange
+        self.app_ctl = parts.app_ctl
 
-        # ── Exchange ──────────────────────────────────────────────────
-        self.exchange = Exchange(idle_sleep=0.001)
+        # 裸 queue（代替真實硬體模組的 I/O）以屬性公開，供測試直接讀寫
+        for key, q in parts.queues.items():
+            setattr(self, key, q)
 
-        # ── wire() 呼叫 ───────────────────────────────────────────────
-        self.app_ctl = wire(
-            self.exchange,
-            native_modules={
-                "wm": self.wm,
-                "stt_gate": self.stt_gate,
-                "command_router": self.command_router,
-                "chat_flow": self.chat_flow,
-                "cli_text_bridge": self.cli_bridge,
-            },
-            legacy_queues={
-                "key_signal":        self.key_signal,
-                "cli_cmd":           self.cli_cmd,
-                "cli_text":          self.cli_text,
-                "recorder_cmd":      self.recorder_cmd,
-                "audio_out":         self.audio_out,
-                "audio_in":          self.audio_in,
-                "recorder_event":    self.recorder_event,
-                "stt_out":           self.stt_out,
-                "http_send":         self.http_send,
-                "http_recv":         self.http_recv,
-                "summary_in":        self.summary_in,
-                "summary_out_q":     self.summary_out_q,
-                "tts_input":         self.tts_input,
-                "tts_cmd":           self.tts_cmd,
-                "ui_event_q":        self.ui_event_q,
-            },
-        )
+        self.wm = parts.native["wm"]
+        self.stt_gate = parts.native["stt_gate"]
+        self.command_router = parts.native["command_router"]
+        self.chat_flow = parts.native["chat_flow"]
+        self.cli_bridge = parts.native["cli_text_bridge"]
 
         # ── 啟動 exchange 與 native modules ──────────────────────────
         self.exchange.start()
@@ -244,6 +194,20 @@ class TestAppWiring(unittest.TestCase):
         self.assertTrue(ok, "app_ctl 逾時未收到 EXIT")
         payload = self.app_ctl.get_nowait()
         self.assertEqual(payload, "EXIT")
+
+    # ── 測試 5b：stt_event stt_error → ui_event_q 收錯誤訊息＋待機 ───────
+
+    def test_5b_stt_event_routes_to_command_router_ui(self):
+        """stt_event 進 stt_event queue → CommandRouter 轉成 [STT 錯誤] 訊息與「待機」狀態。"""
+        self.stt_event.put({"event": "stt_error", "message": "STT 模型未載入"})
+        ok = wait_until(lambda: self.ui_event_q.qsize() >= 2)
+        self.assertTrue(ok, "ui_event_q 逾時未收到 STT 錯誤事件")
+        first = self.ui_event_q.get_nowait()
+        second = self.ui_event_q.get_nowait()
+        self.assertEqual(first.event_type, "message")
+        self.assertEqual(first.data.get("text"), "[STT 錯誤] STT 模型未載入")
+        self.assertEqual(second.event_type, "status")
+        self.assertEqual(second.data, "待機")
 
     # ── 測試 6：_dict_to_ui_event 各種形狀的轉換 ─────────────────────────
 

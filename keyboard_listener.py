@@ -4,6 +4,8 @@ import os
 import sys
 from queue import Queue
 
+from protocol import commands as C
+
 log = logging.getLogger(__name__)
 
 
@@ -71,14 +73,14 @@ class KeyboardListener:
             key_name = key.name if hasattr(key, "name") else (key.char or "")
             key_name = key_name.lower()
             if key_name == self._key_record:
-                self._key_signal_queue.put("RECORD_TOGGLE")
+                self._key_signal_queue.put(C.HOTKEY_RECORD_TOGGLE)
             elif key_name == self._key_command:
-                self._key_signal_queue.put("RECORD_COMMAND_TOGGLE")
+                self._key_signal_queue.put(C.HOTKEY_RECORD_COMMAND_TOGGLE)
             elif key_name == self._key_quick_send:
-                self._key_signal_queue.put("QUICK_SEND")
+                self._key_signal_queue.put(C.HOTKEY_QUICK_SEND)
             elif key_name == self._key_force_stop_tts:
-                self._key_signal_queue.put("FORCE_STOP_TTS")
+                self._key_signal_queue.put(C.HOTKEY_FORCE_STOP_TTS)
             elif key_name == self._key_play_last_original:
-                self._key_signal_queue.put("PLAY_LAST_ORIGINAL")
+                self._key_signal_queue.put(C.HOTKEY_PLAY_LAST_ORIGINAL)
         except Exception:
             pass

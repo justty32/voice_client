@@ -31,6 +31,8 @@ class TuiRenderer:
 
     def stop(self):
         self._running = False
+        if self._thread is not None and self._thread is not threading.current_thread():
+            self._thread.join(timeout=1)
 
     # ── Event loop ─────────────────────────────────────────────────────
 

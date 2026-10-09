@@ -2,11 +2,11 @@
 
 消費三個 topic：
 - inbound     : HTTP 回應字典（type="ChatReply"/"StatusUpdate"/"Error"）
-- summary_out : 摘要器輸出（type="status"/"summary"）
+- summary_out : 摘要器輸出（type="status"/"summary"/"summary_failed"）
 - chat_ctl    : 控制指令（cmd="play_last"）
 
 ChatReply 收到後依 SLM 設定決定走直接 TTS 或送出摘要請求；
-summary_out 的摘要結果以「回覆摘要：{text}」格式呈現；
+summary_out 的摘要結果以「回覆摘要：{text}」格式呈現，摘要失敗時提示並改播原文；
 chat_ctl play_last 重播最後一次完整助理回覆原文。
 語意與 main.py _route_response（346-389）及 F1 段落（208-218）、
 PLAY_LAST（138-141）一致。
@@ -16,6 +16,8 @@ import logging
 
 from core.message import Message
 from core.module import TunnelModule
+from protocol import payloads as P
+from protocol import topics as T
 
 log = logging.getLogger(__name__)
 
@@ -24,7 +26,7 @@ class ChatFlow(TunnelModule):
     """聊天流模組：歷史寫入、摘要決策、狀態呈現、重播。"""
 
     name = "chat_flow"
-    consumes = ("inbound", "summary_out", "chat_ctl")
+    consumes = (T.INBOUND, T.SUMMARY_OUT, T.CHAT_CTL)
 
     def __init__(self, session_manager, summary_threshold: int = 20, slm_enabled: bool = True):
         super().__init__()
@@ -41,11 +43,11 @@ class ChatFlow(TunnelModule):
     # ── 主分派 ────────────────────────────────────────────────────────────────
 
     def handle(self, message: Message) -> None:
-        if message.topic == "inbound":
+        if message.topic == T.INBOUND:
             self._handle_inbound(message.payload)
-        elif message.topic == "summary_out":
+        elif message.topic == T.SUMMARY_OUT:
             self._handle_summary_out(message.payload)
-        elif message.topic == "chat_ctl":
+        elif message.topic == T.CHAT_CTL:
             self._handle_chat_ctl(message.payload)
 
     # ── inbound 處理 ──────────────────────────────────────────────────────────
@@ -68,43 +70,46 @@ class ChatFlow(TunnelModule):
             # 寫入會話歷史
             self._sm.add_message("assistant", full_response)
             # 顯示助理訊息
-            self.emit("ui_event", {"type": "message", "role": "assistant", "text": full_response})
+            self.emit(T.UI_EVENT, P.ui_message("assistant", full_response))
             # 記錄供重播
             self._last_full_response = full_response
             # 摘要決策
             if not self._slm_enabled or len(full_response) < self._summary_threshold:
-                self.emit("tts", {"text": full_response, "priority": "medium"})
+                self.emit(T.TTS, P.tts_item(full_response, "medium"))
             else:
-                self.emit("summary_req", {
-                    "cmd": "summary",
-                    "text": full_response,
-                    "title": self._sm.current_title,
-                })
+                self.emit(T.SUMMARY_REQ, P.summary_request(full_response, self._sm.current_title))
 
         # 不論回覆是否為空，最後均發送待機狀態（main.py:375-377）
-        self.emit("ui_event", {"type": "status", "text": "待機"})
+        self.emit(T.UI_EVENT, P.ui_status("待機"))
 
     def _handle_status_update(self, payload: dict) -> None:
         text = payload.get("text", "")
-        self.emit("ui_event", {"type": "status", "text": text})
+        self.emit(T.UI_EVENT, P.ui_status(text))
         if text:
-            self.emit("tts", {"text": text, "priority": "low"})
+            self.emit(T.TTS, P.tts_item(text, "low"))
 
     def _handle_error(self, payload: dict) -> None:
         msg = payload.get("message", "Unknown error")
-        self.emit("ui_event", {"type": "message", "role": "system", "text": f"[錯誤] {msg}"})
-        self.emit("tts", {"text": f"發生錯誤：{msg}", "priority": "high"})
+        self.emit(T.UI_EVENT, P.ui_message("system", f"[錯誤] {msg}"))
+        self.emit(T.TTS, P.tts_item(f"發生錯誤：{msg}", "high"))
 
     # ── summary_out 處理 ──────────────────────────────────────────────────────
 
     def _handle_summary_out(self, payload: dict) -> None:
         type_ = payload.get("type", "")
         if type_ == "status":
-            self.emit("ui_event", {"type": "status", "text": payload.get("text", "")})
+            self.emit(T.UI_EVENT, P.ui_status(payload.get("text", "")))
         elif type_ == "summary":
             display = f"回覆摘要：{payload.get('text', '')}"
-            self.emit("ui_event", {"type": "message", "role": "summary", "text": display})
-            self.emit("tts", {"text": display, "priority": "medium"})
+            self.emit(T.UI_EVENT, P.ui_message("summary", display))
+            self.emit(T.TTS, P.tts_item(display, "medium"))
+        elif type_ == "summary_failed":
+            # 摘要失敗不可無聲：提示並改播原文（B14）
+            message = payload.get("message", "未知錯誤")
+            self.emit(T.UI_EVENT, P.ui_message("system", f"[摘要失敗] {message}，改播原文"))
+            text = payload.get("text", "")
+            if text:
+                self.emit(T.TTS, P.tts_item(text, "medium"))
 
     # ── chat_ctl 處理 ─────────────────────────────────────────────────────────
 
@@ -112,11 +117,7 @@ class ChatFlow(TunnelModule):
         cmd = payload.get("cmd", "")
         if cmd == "play_last":
             if self._last_full_response:
-                self.emit("ui_event", {
-                    "type": "message",
-                    "role": "system",
-                    "text": "播放最後一次回覆原文",
-                })
-                self.emit("tts", {"text": self._last_full_response, "priority": "medium"})
+                self.emit(T.UI_EVENT, P.ui_message("system", "播放最後一次回覆原文"))
+                self.emit(T.TTS, P.tts_item(self._last_full_response, "medium"))
         else:
             log.debug("chat_ctl: 未知指令 %r，忽略", cmd)

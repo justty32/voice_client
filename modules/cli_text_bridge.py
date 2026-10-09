@@ -13,6 +13,8 @@
 
 from core.message import Message
 from core.module import TunnelModule
+from protocol import payloads as P
+from protocol import topics as T
 from terminal_input import EXIT_SIGNAL
 
 
@@ -20,7 +22,7 @@ class CliTextBridge(TunnelModule):
     """終端文字輸入橋接模組，將 cli_text 分流為 UI 顯示與工作區寫入。"""
 
     name = "cli_text_bridge"
-    consumes = ("cli_text",)
+    consumes = (T.CLI_TEXT,)
 
     def handle(self, message: Message) -> None:
         """處理 cli_text 訊息。
@@ -32,12 +34,12 @@ class CliTextBridge(TunnelModule):
         text: str = message.payload
 
         if text == EXIT_SIGNAL:
-            self.emit("app_ctl", "EXIT")
+            self.emit(T.APP_CTL, P.APP_EXIT)
             return
 
         if not text.strip():
             return
 
         # 先 UI 顯示，後寫入工作區（main.py:178-179 順序）
-        self.emit("ui_event", {"type": "message", "role": "user", "text": text})
-        self.emit("raw_text", text)
+        self.emit(T.UI_EVENT, P.ui_message("user", text))
+        self.emit(T.RAW_TEXT, text)

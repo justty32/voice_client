@@ -37,6 +37,17 @@ class BoomConsumer(TunnelModule):
         raise RuntimeError("炸了")
 
 
+class SilentBoomConsumer(BoomConsumer):
+    name = "silent_boom"
+
+    def __init__(self):
+        super().__init__()
+        self.errors = []
+
+    def on_handle_error(self, message, exc):
+        self.errors.append((message.topic, exc))
+
+
 def wait_outbox(testcase, module, timeout=1.0):
     """輪詢模組 outbox 直到取得一筆訊息，逾時則 fail。"""
     deadline = time.time() + timeout
@@ -88,6 +99,24 @@ class TestTunnelModule(unittest.TestCase):
             self.assertEqual(msg.topic, "ui_event")
             self.assertEqual(msg.payload["type"], "message")
             self.assertIn("boom", msg.payload["text"])
+            self.assertIn("ping", msg.payload["text"])
+            self.assertIn("炸了", msg.payload["text"])  # 例外文字帶到 UI
+        finally:
+            m.stop()
+
+    def test_overridden_on_handle_error_replaces_default_emit(self):
+        m = SilentBoomConsumer()
+        m.start()
+        try:
+            m.inbox.put_nowait(Message(topic="ping", payload="x"))
+            deadline = time.time() + 1.0
+            while not m.errors and time.time() < deadline:
+                time.sleep(0.005)
+            self.assertEqual(len(m.errors), 1)
+            topic, exc = m.errors[0]
+            self.assertEqual(topic, "ping")
+            self.assertIsInstance(exc, RuntimeError)
+            self.assertTrue(m.outbox.empty(), "覆寫 hook 後基底不應再 emit ui_event")
         finally:
             m.stop()
 

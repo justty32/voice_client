@@ -56,6 +56,8 @@ class HttpClient:
 
     def stop(self):
         self._running = False
+        if self._thread is not None and self._thread is not threading.current_thread():
+            self._thread.join(timeout=1)
 
     # ── Worker ─────────────────────────────────────────────────────────
 
@@ -113,10 +115,11 @@ class HttpClient:
             # 這裡我們手動將對話串接成一段文字，讓模型理解上下文
             # history 為 List[List[str]]：[role, content, timestamp]
             for msg in session["history"][-6:-1]: # 取最後幾筆作為上下文，排除剛加入的一筆
-                role = msg[0] if len(msg) > 0 else ""
-                content = msg[1] if len(msg) > 1 else ""
-                role_label = "使用者" if role == "user" else "AI助手"
-                formatted_history += f"{role_label}: {content}\n"
+                # 迴圈變數不可沿用 content，否則會覆蓋本次輸入（B1）
+                hist_role = msg[0] if len(msg) > 0 else ""
+                hist_content = msg[1] if len(msg) > 1 else ""
+                role_label = "使用者" if hist_role == "user" else "AI助手"
+                formatted_history += f"{role_label}: {hist_content}\n"
         
         # 組合上下文與當前問題
         if formatted_history:

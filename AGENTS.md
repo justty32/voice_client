@@ -22,5 +22,5 @@ Voice Client 是語音優先的終端／手機 AI 客戶端。桌面主線採 Da
 
 `AGENTS.md` → `WORKFLOWS.md` / `INDEX.md` → 工作流入口 → 工作流內容。
 
-結構整理時才讀 [DEV-GUIDE.md](DEV-GUIDE.md)；程式碼慣例與 CODE_MAP 維護規則在
+結構整理時才讀 [DEV-GUIDE.md](DEV-GUIDE.md) 與 [wf/STRUCTURE.md](wf/STRUCTURE.md)（通用 kernel 補充包見 [wf/README.md](wf/README.md)）；程式碼慣例與 CODE_MAP 維護規則在
 [workflows/common/conventions.md](workflows/common/conventions.md)。

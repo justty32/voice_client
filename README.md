@@ -12,23 +12,12 @@ V-TUI Assistant 旨在提供一個高效、直觀的語音優先交互環境。�
 資料搬移由單執行緒交換核心（Exchange）統一執行，一次一筆、單點可觀測。
 詳見 [`docs/architecture.md`](docs/architecture.md)。
 
-- **入口 (`main.py` → `app.py`)**: `app.py` 是純接線層——建佇列、掛轉接器、啟動模組，不含業務邏輯。
-- **框架 (`core/`)**: Message／Outbox／Inbox／Exchange／TunnelModule／轉接器。
-- **Audio Pipeline**:
-    - **Recorder (`record.py`)**: 具備智能切片邏輯的錄音器，支援 VAD (靜音檢測)。
-    - **VoiceToText (`voice_to_text.py`)**: 基於 `faster-whisper` 的本地 STT 引擎。
-    - **AudioPriorityPlayer (`text_to_voice.py`)**: 具備優先級的 TTS 播放器，支援立即中斷與排隊。
-- **業務模組 (`modules/`)**:
-    - **WorkspaceManager**: 多工作區與「當前工作區」指標；辨識文字唯一去向。
-    - **SttGate**: 語音指令模式分流（normal → 工作區、command → 指令）。
-    - **CommandRouter**: 熱鍵／斜線指令／語音指令的唯一處理者。
-    - **ChatFlow**: 對話歷史、摘要決策（SLM 如 gemma3:1b）、回覆重播。
-    - **SummaryGenerator (`summary_generator.py`)**: 調用本地 SLM 生成長回答摘要。
-    - **SessionManager (`session_manager.py`)**: 管理對話歷史與多會話切換。
-- **Interface**:
-    - **TuiRenderer (`tui_renderer.py`)**: 基於終端的交互界面。
-    - **KeyboardListener (`keyboard_listener.py`)**: X11 等環境的 `pynput` 全域快捷鍵監聽。
-    - **LocalControl (`local_control.py`)**: Wayland/KDE 快捷鍵使用的本機 Unix socket 控制入口。
+- **入口**：`main.py` → `app.py`，`app.py` 是純接線層（建佇列、掛轉接器、啟動模組），不含業務邏輯。
+- **框架 `core/`**：Message、Outbox／Inbox、Exchange、TunnelModule 與轉接器。
+- **業務模組 `modules/`**：WorkspaceManager（當前工作區）、SttGate（語音指令分流）、CommandRouter（熱鍵／斜線／語音指令）、ChatFlow（對話、摘要、重播）。
+- **既有元件**：錄音、STT（`faster-whisper`）、TTS、摘要、會話管理、TUI、熱鍵與 KDE Wayland 本機控制，經轉接器掛上框架。
+
+各檔案職責見架構文檔的[新舊模組對照](docs/architecture/migration.md)。
 
 ## ⌨️ 控制指南
 

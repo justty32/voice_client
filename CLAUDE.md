@@ -33,7 +33,7 @@ Voice Client 是語音優先的終端／手機 AI 客戶端。桌面主線採 Da
 .venv/bin/python -m pytest -q
 ```
 
-目前完整基準為 `339 passed, 5 subtests passed`。需要時再執行：
+目前完整基準為 `514 passed, 49 subtests passed`。需要時再執行：
 
 ```bash
 .venv/bin/python -m unittest discover -s tests
@@ -63,8 +63,8 @@ python -m compileall -q -x '/(\.venv|\.git)/' .
 
 ## 專案特別注意
 
-- 桌面入口已使用 Data Tunnel；`mobile_server.py` 尚未完全對齊，修改共享元件時要檢查兩條入口。
-- `text_accumulator.py`、`workspace_controller.py` 是歷史相容路徑，移除前必須先查引用。
+- 桌面與手機入口共用 `app_wiring.assembly.build_core()`；手機只替換邊緣（`mobile/edge.py`），修改共享元件時兩條入口都要跑測試。
+- `text_accumulator.py`、`workspace_controller.py` 已 DEPRECATED（產品碼零引用），是否刪除待使用者裁示。
 - Wayland、SSH 或 headless 環境中 `pynput` 全域熱鍵不可用，不代表核心流程壞掉；
   KDE Wayland 另有 `local_control.py` 路徑，詳見 `docs/kde_wayland_shortcuts.md`。
 - TTS driver、voice ID 與音訊裝置依平台不同，測試不可假設所有機器一致。
@@ -83,4 +83,4 @@ python -m compileall -q -x '/(\.venv|\.git)/' .
 `SESSION-LOG.md` 與 `WAIT_USER.md` 只保留 open 項目；完成後移除。已落地結果放到文件、
 [feature-dev/landed](workflows/feature-dev/landed/README.md) 或 git 歷史。
 
-結構整理時才讀 [DEV-GUIDE.md](DEV-GUIDE.md)，不要把它當成每個任務的固定程序。
+結構整理時才讀 [DEV-GUIDE.md](DEV-GUIDE.md) 與 [wf/STRUCTURE.md](wf/STRUCTURE.md)（通用 kernel 補充包見 [wf/README.md](wf/README.md)），不要把它當成每個任務的固定程序。

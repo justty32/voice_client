@@ -17,17 +17,12 @@ import time
 from pathlib import Path
 from queue import Queue
 
+from protocol.commands import HOTKEY_SIGNALS
+
 log = logging.getLogger(__name__)
 
-ALLOWED_COMMANDS = frozenset(
-    {
-        "RECORD_TOGGLE",
-        "RECORD_COMMAND_TOGGLE",
-        "QUICK_SEND",
-        "FORCE_STOP_TTS",
-        "PLAY_LAST_ORIGINAL",
-    }
-)
+# 白名單＝熱鍵五訊號，單一來源在 protocol/commands.py。
+ALLOWED_COMMANDS = HOTKEY_SIGNALS
 
 
 def socket_path() -> Path:
@@ -85,9 +80,12 @@ class LocalControl:
 
     def _loop(self) -> None:
         while self._running:
+            # stop() 可能在另一執行緒把 _socket 設為 None；先取區域參照，None 即視為已停機（B9）
+            sock = self._socket
+            if sock is None:
+                break
             try:
-                assert self._socket is not None
-                data = self._socket.recv(128)
+                data = sock.recv(128)
             except socket.timeout:
                 continue
             except OSError:

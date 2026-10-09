@@ -32,6 +32,11 @@ class Exchange:
             raise ValueError(f"topic 已有消費者: {topic}")
         self._routes[topic] = inbox
 
+    # ── 查詢 ──────────────────────────────────────────────────────
+    def routes(self) -> tuple[str, ...]:
+        """回傳已註冊消費者的 topic（依註冊順序）；供契約測試與診斷使用。"""
+        return tuple(self._routes)
+
     # ── 交換 ──────────────────────────────────────────────────────
     def tick(self) -> bool:
         """執行一次交換：最多搬一筆。回傳是否有搬移（或丟棄）。"""

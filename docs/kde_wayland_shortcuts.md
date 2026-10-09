@@ -29,7 +29,8 @@ KDE Global Shortcuts
 ```
 
 實際位置以 `$XDG_RUNTIME_DIR/voice-client-control.sock` 為準。socket 權限為
-`0600`，只有目前使用者能操作。允許的命令固定為：
+`0600`，只有目前使用者能操作。允許的命令固定為以下五個（單一來源為
+`protocol/commands.py` 的 `HOTKEY_SIGNALS`）：
 
 - `RECORD_TOGGLE`
 - `RECORD_COMMAND_TOGGLE`
