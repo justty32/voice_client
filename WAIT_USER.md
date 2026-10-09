@@ -14,5 +14,3 @@
   Recorder 退避重試恢復；手動殺 Kokoro worker 後 TTS 自動恢復、殺第二次則放棄並寫 log；SLM 關閉時摘要失敗改播原文。
 - 【未驗證】階段 5 停機：legacy `stop()` 改 join 後關機無 ALSA 噪音或 traceback（含 LocalControl 不印 AssertionError），
   停機延遲可接受（STT 載入中、TTS 播放中按退出）。
-- 【待裁示】D4：`text_accumulator.py`、`workspace_controller.py` 產品碼已零引用並標 DEPRECATED；是否刪除兩檔與其測試
-  （預計獨立 commit）。點頭後 [plans/refactor_next/](plans/refactor_next/README.md) 即可封存。

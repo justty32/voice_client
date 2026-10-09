@@ -1,3 +1,4 @@
+> 封存 2026-10-09，已全部落地（見 workflows/feature-dev/landed/README.md）
 # 階段 7a：手機可測試化
 
 [總覽](README.md)｜痛點 1 前置；B6；`wf/architecture/entrypoints.md` §6

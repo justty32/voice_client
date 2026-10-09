@@ -1,3 +1,4 @@
+> 封存 2026-10-09，已全部落地（見 workflows/feature-dev/landed/README.md）
 # 階段 4：錯誤與狀態閉環
 
 [總覽](README.md)｜痛點 3；B2、B7、B8、B14、P5

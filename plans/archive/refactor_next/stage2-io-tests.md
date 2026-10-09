@@ -1,3 +1,4 @@
+> 封存 2026-10-09，已全部落地（見 workflows/feature-dev/landed/README.md）
 # 階段 2：I/O 層測試安全網＋三個邊界 bug
 
 [總覽](README.md)｜痛點 9；B1、B9、B13

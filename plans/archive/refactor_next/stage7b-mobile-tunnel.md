@@ -1,3 +1,4 @@
+> 封存 2026-10-09，已全部落地（見 workflows/feature-dev/landed/README.md）
 # 階段 7b：手機走 Data Tunnel
 
 [總覽](README.md)｜痛點 1、6、7；P1、P7；D3、D4、D9、D10

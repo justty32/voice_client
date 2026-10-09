@@ -81,10 +81,8 @@
 - `mobile/audio.py`（音訊 → WAV）、`mobile/net.py`（LAN IP）、`mobile/ssl_cert.py`（自簽憑證）、`static/`（前端）。
 - 測試：`tests/test_mobile_server.py`（TestClient）、`test_mobile_wiring.py`（接線）；替身在 `tests/_mobile_fakes.py`。
 
-## 設定、工具與歷史相容
+## 設定與工具
 
 - `config.py` / `config.ini`：設定讀取與預設值。
 - `utils/`：LLM、clipboard、prompt 等共用工具；`utils/logging_setup.py` 為桌面與手機共用日誌設定。
 - 測試：`tests/test_config.py`、`test_llm_client.py`、`test_logging_setup.py`。
-- `text_accumulator.py` / `workspace_controller.py`：**DEPRECATED**，產品碼零引用（階段 7b 起）；
-  只剩自身測試（`test_text_accumulator.py`、`test_workspace_controller.py`、`test_clipboard_commands.py`），待使用者裁示（D4）後刪除。

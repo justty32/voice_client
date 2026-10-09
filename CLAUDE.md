@@ -33,7 +33,7 @@ Voice Client 是語音優先的終端／手機 AI 客戶端。桌面主線採 Da
 .venv/bin/python -m pytest -q
 ```
 
-目前完整基準為 `514 passed, 49 subtests passed`。需要時再執行：
+目前完整基準為 `435 passed, 49 subtests passed`。需要時再執行：
 
 ```bash
 .venv/bin/python -m unittest discover -s tests
@@ -64,7 +64,6 @@ python -m compileall -q -x '/(\.venv|\.git)/' .
 ## 專案特別注意
 
 - 桌面與手機入口共用 `app_wiring.assembly.build_core()`；手機只替換邊緣（`mobile/edge.py`），修改共享元件時兩條入口都要跑測試。
-- `text_accumulator.py`、`workspace_controller.py` 已 DEPRECATED（產品碼零引用），是否刪除待使用者裁示。
 - Wayland、SSH 或 headless 環境中 `pynput` 全域熱鍵不可用，不代表核心流程壞掉；
   KDE Wayland 另有 `local_control.py` 路徑，詳見 `docs/kde_wayland_shortcuts.md`。
 - TTS driver、voice ID 與音訊裝置依平台不同，測試不可假設所有機器一致。

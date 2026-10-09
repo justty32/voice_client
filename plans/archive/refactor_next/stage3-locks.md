@@ -1,3 +1,4 @@
+> 封存 2026-10-09，已全部落地（見 workflows/feature-dev/landed/README.md）
 # 階段 3：共享狀態加鎖、原子落盤、同名對話不覆蓋
 
 [總覽](README.md)｜痛點 2；B3、B4、B5、P2

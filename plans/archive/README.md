@@ -12,3 +12,4 @@
 | `data_tunnel_stage5_plan.md` | 2026-10-09 | docs/architecture.md（階段⑤已落地） |
 | `workspace_unification.md` | 2026-10-09 | docs/architecture.md（①～④完成，工作區／指令層由資料隧道接手） |
 | `mobile.md` | 2026-10-09 | docs/user_manual.md（mobile_server.py 與 static/ 已落地） |
+| `refactor_next/`（9 檔） | 2026-10-09 | 全部落地：workflows/feature-dev/landed/README.md、docs/architecture/ |

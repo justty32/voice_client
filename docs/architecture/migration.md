@@ -32,12 +32,12 @@
 | `session_manager.py` | 由 CommandRouter／ChatFlow 同步呼叫（保持同步物件，零修改） |
 | `tui_renderer.py`、`text_to_voice.py` | 經轉接器掛上框架（ui_event 經 dict→UiEvent 轉換；模組零修改） |
 
-### 手機入口與待刪除
+### 手機入口
 
 | 現有檔案 | 去向 |
 |---|---|
 | `mobile_server.py` | 走 Data Tunnel：`build_core()`＋WS 邊緣轉接（refactor_next 階段 7b）；行為以桌面為準 |
-| `text_accumulator.py`、`workspace_controller.py` | DEPRECATED，產品碼零引用；待使用者裁示（D4）後連同其測試刪除 |
+| `text_accumulator.py`、`workspace_controller.py` | 已刪除（2026-10-09，D4）；手機改用共用核心後無引用 |
 
 ## 6. 遷移路線圖（全部完成）
 
@@ -48,4 +48,4 @@
 - ✅ **階段⑤**：呈現層收尾——CliTextBridge、recorder_event、`app.py` 接線入口、
   main.py 縮為薄殼（舊路由刪除）
 - ✅ **refactor_next 7b**：手機入口改走 `build_core()`；text_accumulator.py、
-  workspace_controller.py 不再被產品碼引用（刪除待 D4）。
+  workspace_controller.py 隨後刪除（D4）。

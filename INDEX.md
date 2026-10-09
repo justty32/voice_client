@@ -13,7 +13,7 @@ Voice Client 將麥克風、STT、工作區、LLM、摘要、TTS 與桌面／手
 | `mobile_server.py` / `static/` | 手機 Web 模式 |
 | `workspace.py` / `session_manager.py` | 工作區與對話持久化 |
 | `tests/` | 單元、整合與接線測試 |
-| `ai_assist/` / `server_sample/` | 非產品內容：另一實驗專案文件與 `SERVER.enabled=true` 的測試對端；codemap 排除 |
+| `server_sample/` | 非產品內容：`SERVER.enabled=true` 模式的測試對端；codemap 排除 |
 | `docs/` | 架構、使用手冊與技術調查 |
 | `plans/` | 現役與歷史設計／實作計畫 |
 | `reports/` | 程式碼健檢報告（bug、擴展方向、架構改進） |

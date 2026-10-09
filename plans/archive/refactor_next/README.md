@@ -1,3 +1,4 @@
+> 封存 2026-10-09，已全部落地（見 workflows/feature-dev/landed/README.md）
 # 下一步重構計畫（refactor_next）
 
 - 擬定日期：2026-10-09

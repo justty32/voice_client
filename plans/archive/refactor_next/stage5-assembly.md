@@ -1,3 +1,4 @@
+> 封存 2026-10-09，已全部落地（見 workflows/feature-dev/landed/README.md）
 # 階段 5：組裝與生命週期
 
 [總覽](README.md)｜痛點 5；P6；`wf/architecture/layering.md` §3、`dataflow.md` §6

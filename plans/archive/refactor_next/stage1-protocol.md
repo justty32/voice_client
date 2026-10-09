@@ -1,3 +1,4 @@
+> 封存 2026-10-09，已全部落地（見 workflows/feature-dev/landed/README.md）
 # 階段 1：協定單一事實來源（`protocol/`＋契約測試）
 
 [總覽](README.md)｜痛點 4、P3（1、2、5）

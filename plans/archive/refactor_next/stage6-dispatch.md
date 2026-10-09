@@ -1,3 +1,4 @@
+> 封存 2026-10-09，已全部落地（見 workflows/feature-dev/landed/README.md）
 # 階段 6：指令集單一來源、派發表、小型死碼
 
 [總覽](README.md)｜痛點 4（指令集三份）、10；P3-4、P8

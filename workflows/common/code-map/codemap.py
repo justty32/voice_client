@@ -23,7 +23,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
-EXCLUDE_PREFIXES = ("ai_assist/", "server_sample/", "wf/", "workflows/")
+EXCLUDE_PREFIXES = ("server_sample/", "wf/", "workflows/")
 TOPICS_MODULE = "protocol.topics"  # topic 常數的單一來源；掃描時解析其常數
 
 
