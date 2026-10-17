@@ -87,6 +87,8 @@ base_url = https://generativelanguage.googleapis.com/v1beta/openai/
 api_key = 你的API金鑰
 ```
 
+想集中管理多個後端、做 fallback，可改接本地 LiteLLM proxy，見 [LiteLLM proxy](litellm.md)。
+
 ### [SERVER] — 轉發模式
 
 ```ini

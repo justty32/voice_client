@@ -16,5 +16,6 @@
 - §8 設定檔（config.ini）速查 → [user_manual/config.md](user_manual/config.md)
 - §9 疑難排解 → [user_manual/troubleshooting.md](user_manual/troubleshooting.md)
 - §10 手機模式 → [user_manual/mobile.md](user_manual/mobile.md)
+- §11 經本地 LiteLLM proxy 連線 LLM → [user_manual/litellm.md](user_manual/litellm.md)
 
 改使用者指令、設定或操作時，更新對應章節檔；本檔只留簡介與目錄。
