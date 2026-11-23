@@ -10,4 +10,4 @@ voice_client 遇到的 aos 本身的問題：一件一筆，攢著一起交給 a
 
 ## 待交
 
-（還沒有。）
+- 2026-11-23，main：root daemon（pid 7763）環境裡的 `AOS_LLM_KERNEL=/home/lorkhan/aos-home/.stack/proc/llm`（少一個 s），實際 llm kernel stack 是 `.stack/procs/llm`；`root/.env` 寫的是對的 `${AOS_STACK}/procs/llm`，推測起根時殼裡已 export 了錯值（.env 不蓋殼值）。後果：整棵樹裡所有 agent-fsm 問腦都 `LlmKernelMissing`（dev、docs 第一次掛上就卡在 cooldown）。暫解：座位掛載時 `envs` 帶正確的 `AOS_LLM_KERNEL`。證據：`tr '\0' '\n' < /proc/262645/environ | grep LLM`。建議：重起根前 unset 該變數，或讓 aos-llm 報錯時提示相近的路徑。

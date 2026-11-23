@@ -33,4 +33,14 @@ echo '{"op":"check","root":"'"$PWD"'/wf/aos/defs"}' | "$AOS_HOME/lib/tools/aos/d
 
 ## 掛載
 
-掛載、停、移除只由窗口做（[lead 卡](../org/lead/README.md)）。有工作才掛；收工 stop、不 rm（CHOICE 2）。
+掛載、停、移除只由窗口做（[lead 卡](../org/lead/README.md)）。有工作才掛；收工 stop、不 rm（CHOICE 2）。已掛過的座位用 `agents_ctl` `{"op":"start","name":"dev"}` 接著跑。
+
+第一次掛（2026-11-23 起的做法）：
+
+```
+agents_ctl {"op":"add","def":"wf/aos/defs/dev","name":"dev","ws":".",
+  "envs":{"AOS_NOTIFY_BOX":"/home/lorkhan/aos-home/.stack/procs/repo-vc/procs/main/mailbox",
+          "AOS_LLM_KERNEL":"/home/lorkhan/aos-home/.stack/procs/llm"}}
+```
+
+`AOS_LLM_KERNEL` 要明帶：root daemon 目前帶的是錯路徑 `.stack/proc/llm`（見 [feedback](feedback.md)），不帶就 `LlmKernelMissing`。樹重起、根帶對值後，這個鍵可省。

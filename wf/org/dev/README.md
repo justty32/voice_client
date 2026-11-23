@@ -4,7 +4,7 @@
 
 回 [org](../README.md)。
 
-**狀態**：有工作才掛，尚未掛過。agent 名 `dev`（提案），在子 daemon `repo-vc`。沒工作時 stop、不 rm；重起時先讀本卡與筆記 `wf/temp/dev/notes.md`，收工前把做到哪寫回筆記（使用者 2026-11-23，CHOICE 2）。
+**狀態**：有工作才掛；2026-11-23 掛上做唯讀冒煙通過，已 stop。agent 名 `dev`（提案），在子 daemon `repo-vc`。沒工作時 stop、不 rm；重起時先讀本卡與筆記 `wf/temp/dev/notes.md`，收工前把做到哪寫回筆記（使用者 2026-11-23，CHOICE 2）。
 
 地盤（使用者 2026-11-23，CHOICE 3）；之後會再細切。
 

@@ -26,8 +26,8 @@ voice_client 誰管哪塊、下一棒給誰：座位、標準流程、東西放�
 | 座位 | 誰 | 一句話 | 狀態 |
 |---|---|---|---|
 | [lead](lead/README.md) | `main` | 使用者的窗口：派工、驗收、活狀態 | 已掛 |
-| [dev](dev/README.md) | `dev` | 產品程式碼、`tests/`、CODE_MAP | 有工作才掛，尚未掛過 |
-| [docs](docs/README.md) | `docs` | `docs/`、`README.md`、`workflows/`、`plans/`、`reports/` | 有工作才掛，尚未掛過 |
+| [dev](dev/README.md) | `dev` | 產品程式碼、`tests/`、CODE_MAP | 有工作才掛；冒煙通過，已 stop |
+| [docs](docs/README.md) | `docs` | `docs/`、`README.md`、`workflows/`、`plans/`、`reports/` | 有工作才掛；冒煙通過，已 stop |
 
 座位＝這個夾裡的一張卡，加上它管的地盤。三個都在子 daemon `repo-vc`；agent 名 `dev`、`docs` 是提案。定義在 [wf/aos/defs/](../aos/README.md)。有工作才掛，見 CHOICE 2。雜活不開座位，由窗口派單工，見 [helper](helper/README.md)。空白卡 [seat](seat/README.md) 留著當樣板。
 
