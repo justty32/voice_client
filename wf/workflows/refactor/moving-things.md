@@ -77,7 +77,7 @@ grep -rn '<舊路徑>' .github/ *.yml *.json <agent 工具的設定檔>
 for f in <moved>/*.py; do python3 -c "import ast;ast.parse(open('$f').read())"; done
 python3 <tool>.py --help
 python3 -m unittest discover -s <dir> -p 'test_*.py'
-# 4. 連結檢查，並確認檢查器涵蓋新位置
+# 4. 連結檢查（可選，預設不跑；大量搬檔後擔心連結壞掉再跑），並確認檢查器涵蓋新位置
 bash tools/wf-lint.sh <root>   # 或該專案的連結檢查器
 # 5. CI 指令實跑一次
 ```

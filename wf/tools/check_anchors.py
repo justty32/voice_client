@@ -9,6 +9,7 @@ import configparser
 import os
 from pathlib import Path
 import re
+import subprocess
 import sys
 import unicodedata
 from urllib.parse import unquote
@@ -164,7 +165,31 @@ def markdown_files(root: Path) -> list[Path]:
         markdown.extend(
             current_path / filename for filename in files if filename.endswith(".md")
         )
-    return sorted(markdown)
+    return sorted(drop_git_ignored(root, markdown))
+
+
+def drop_git_ignored(root: Path, files: list[Path]) -> list[Path]:
+    """git repo 內丟掉 .gitignore 命中的檔（tracked 不算）；非 repo 或 root 本身被 ignore 時照舊。"""
+    if not files:
+        return files
+
+    def git(*args: str, data: bytes | None = None) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            ["git", "-C", str(root), *args], input=data, capture_output=True
+        )
+
+    try:
+        inside = git("rev-parse", "--is-inside-work-tree")
+    except OSError:
+        return files
+    if inside.returncode != 0 or git("check-ignore", "-q", ".").returncode == 0:
+        return files
+    relative = [str(path.relative_to(root)) for path in files]
+    result = git(
+        "check-ignore", "-z", "--stdin", data="\0".join(relative).encode() + b"\0"
+    )
+    ignored = {item.decode() for item in result.stdout.split(b"\0") if item}
+    return [path for path, rel in zip(files, relative) if rel not in ignored]
 
 
 def check_root(root: Path) -> list[tuple[str, int, str, str]]:
