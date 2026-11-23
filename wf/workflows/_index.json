@@ -1,23 +1,10 @@
 {
-  "TEMPLATE.workflow.md": {
-    "description": "舊工作流骨架；新增流程時改讀 aos 正本。"
-  },
-  "analysis.md": {
-    "description": "舊陌生專案分析流程；分析外部 repo 時改讀 aos 正本。"
-  },
   "common": {
     "description": "本地資料檔契約與回覆風格；要抽表或查對話文風時讀。",
     "index": "common/_index.json"
   },
   "decisions.md": {
     "description": "本專案決策記錄表；使用者說「記個決定」時依 aos 流程填寫。"
-  },
-  "patch.md": {
-    "description": "舊獨立 patch 流程；跨 repo 交付 patch 時改讀 aos 正本。"
-  },
-  "refactor": {
-    "description": "搬移整理的本地補充；使用者說「搬檔改名」時查閱。",
-    "index": "refactor/_index.json"
   },
   "tidy": {
     "description": "本專案工具的整理踩坑；使用者說「整理文件」而需要查本地工具限制時讀。",

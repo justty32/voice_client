@@ -19,7 +19,7 @@
 
 ## 舊路徑與正本
 
-下表是來源對照，不是本地檔案的存在清單；本地若仍有同名檔，只保留專案補充。
+下表是來源對照，不是本地檔案的存在清單。`TEMPLATE.workflow.md`、`analysis.md`、`patch.md`、`refactor/moving-things.md`、`tidy/content-trim.md` 已移除，改讀 aos 正本；其餘同名檔只保留本地補充或記錄。空的 `workflows/refactor/` 與其 index 一併移除，沒有搬移或改名既有文件。
 
 <!-- wf-nav -->
 | 舊路徑（從 wf/ 算） | aos 正本 |
