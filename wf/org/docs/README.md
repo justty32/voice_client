@@ -28,7 +28,7 @@
 
 ### 完成條件
 
-改到的檔沒有壞連結（`bash wf/tools/wf-lint.sh .` 的 broken=0）、有 commit 且已 push；動到 topic／指令集文件時契約測試回 0。回信寫明驗了什麼、沒跑什麼、為什麼。
+改到的檔沒有壞連結（`bash wf/tools/wf-lint.sh .` 的 broken=0）、有 commit（請求授權 push 時已 push）；動到 topic／指令集文件時契約測試回 0。回信寫明驗了什麼、沒跑什麼、為什麼。
 
 ## 讀寫範圍
 
@@ -44,7 +44,7 @@
 
 ### 收件與交件
 
-- **窗口的 `REQUEST`**（寫手冊、整理工作流、寫計畫） → 照工作流做、自己先跑檢查 → 在地盤內 commit、push → `DONE` 回窗口：commit、檢查輸出、要 dev 跟進的。
+- **窗口的 `REQUEST`**（寫手冊、整理工作流、寫計畫） → 照工作流做、自己先跑檢查 → 在地盤內 commit（請求授權才 push）→ `DONE` 回窗口：commit、檢查輸出、要 dev 跟進的。
 - **dev 的請求**（程式碼改了、文件要跟上） → 讀 dev 的 commit 再改文件 → `DONE` 回 dev，知會窗口。
 
 ### 出地盤與方向題

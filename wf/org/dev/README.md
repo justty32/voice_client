@@ -29,7 +29,7 @@
 
 ### 完成條件
 
-`.venv/bin/python -m pytest -q` 全綠（基準見 AGENTS.md）、有 commit 且已 push。回信寫明跑了哪些測試、沒跑哪些、為什麼。
+`.venv/bin/python -m pytest -q` 全綠（基準見 AGENTS.md）、有 commit（請求授權 push 時已 push）。回信寫明跑了哪些測試、沒跑哪些、為什麼。
 
 ## 讀寫範圍
 
@@ -45,7 +45,7 @@
 
 ### 收件與交件
 
-- **窗口的 `REQUEST`**（功能、修 bug、重構、調查） → 照工作流做、自己先跑 pytest → 在地盤內 commit、push → `DONE` 回窗口：commit、測試輸出、要 docs 跟進的、要使用者驗的。
+- **窗口的 `REQUEST`**（功能、修 bug、重構、調查） → 照工作流做、自己先跑 pytest → 在地盤內 commit（請求授權才 push）→ `DONE` 回窗口：commit、測試輸出、要 docs 跟進的、要使用者驗的。
 - **docs 的請求**（文件寫的跟程式碼不符、要補 CODE_MAP） → 查過程式碼再回 → 回 docs，知會窗口。
 
 ### 出地盤與方向題
