@@ -1,0 +1,10 @@
+{
+  "dev": {
+    "description": "dev 座位的 aos 定義；掛載或診斷開發座位時讀。",
+    "index": "dev/_index.json"
+  },
+  "docs": {
+    "description": "docs 座位的 aos 定義；掛載或診斷文件座位時讀。",
+    "index": "docs/_index.json"
+  }
+}

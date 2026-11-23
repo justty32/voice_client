@@ -1,0 +1,12 @@
+{
+  "README.md": {
+    "description": "本 repo 的 aos 設定入口；掛載或檢查座位時讀。"
+  },
+  "defs": {
+    "description": "座位 agent 的定義設定；調整或檢查定義時讀。",
+    "index": "defs/_index.json"
+  },
+  "feedback.md": {
+    "description": "aos 本身問題的本地紀錄；要回報工具問題時讀。"
+  }
+}

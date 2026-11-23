@@ -1,0 +1,14 @@
+{
+  "README.md": {
+    "description": "本 repo 的整理工具與硬驗收補充；整理文件時搭配 aos 流程讀。"
+  },
+  "content-trim.md": {
+    "description": "舊內容精簡規則；只留現行結論時改讀 aos 正本。"
+  },
+  "gotchas.md": {
+    "description": "本地 link_columns、8192 邊緣與 BIGLIST 踩坑；文件整理遇到工具限制時讀。"
+  },
+  "manager-brief.md": {
+    "description": "管理線的本地資料檔與驗收補充；分派整理批次時讀。"
+  }
+}

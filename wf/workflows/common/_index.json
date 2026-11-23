@@ -1,0 +1,11 @@
+{
+  "data-files-fmt.md": {
+    "description": "資料檔路徑代號 $fmt 附錄；需要跨層路徑展開時讀。"
+  },
+  "data-files.md": {
+    "description": "資料檔 wf-table/1 契約與工具；抽表或讀寫同質記錄時讀。"
+  },
+  "reply-style.md": {
+    "description": "對話回覆的文風規則；要寫給使用者的回覆時讀。"
+  }
+}

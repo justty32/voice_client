@@ -1,6 +1,6 @@
 # data-files — 資料檔契約 `wf-table/1`（>1 KB 條列走 .json / .csv）
 
-[common](../../../workflows/common/README.md)｜[STRUCTURE](../../STRUCTURE.md)｜整理流程 [tidy](../tidy/README.md)
+[common](../../../workflows/common/README.md)｜[STRUCTURE](../../STRUCTURE.md)｜整理流程 `$AOS_HOME/knowledge/wf/workflows/tidy.md`
 
 md 裡**每列同一組欄位的條列式區塊 > 1 KB**（表格、清單）抽成資料檔，md 只留摘要；讀寫一律走 `tools/tabledb.py`（非侵入式佈局在 `wf/tools/`），**不整份讀進 context**。本檔是格式與工具的唯一契約，工具實作照這裡做。
 
@@ -63,4 +63,4 @@ Python 端：`from tabledb import load; t = load("x.json"); t.rows / t.get(i) / 
 
 **`tools/wf-lint.sh`** ① 呼叫 `find_big_lists.py --min 1024` 報 `BIGLIST`：同質記錄表（`linked` 不是 `all`）`--strict` 才算失敗；純連結表印 `BIGLIST-LINKS` 只 warning、永不算失敗。② 掃 repo 內所有 `.json`／`.csv`（`archive/` 除外）：有 `"contract": "wf-table/` 的 json 與所有 csv 跑 `tabledb.py check`，壞連結印 `BROKEN <檔>[<index>.<column>] -> <target>` 計入 `broken`。③ 呼叫 `check_anchors.py` 驗 md 連結的 `#錨點`（heading slug 與顯式 `id=`）在目標檔是否存在，不存在印 `BROKEN-ANCHOR <檔>:<行> -> <目標>#<錨點>` 計入 `broken`。④ 掃 md 裡殘留的查詢指令：任一行含 `tabledb.py` 且含 `python3 ` 或 `tools/tabledb.py` 就印 `QUERYCMD <檔>:<行>`（`archive/`、`wf/`、`AGENTS.md` 與本契約檔免掃）；平時只是 warning，`--strict` 才算失敗。
 
-**`tools/fix_moved_links.py [--apply] [--root DIR] [--prefix SUB] moves.tsv`** 搬檔後照 `舊<TAB>新` 重寫 md 與資料檔（json 字串值、csv cell）裡的連結；**檔案本身被搬**時，其內連結以舊位置解析、以新位置重算。流程見 [tidy](../tidy/README.md)。
+**`tools/fix_moved_links.py [--apply] [--root DIR] [--prefix SUB] moves.tsv`** 搬檔後照 `舊<TAB>新` 重寫 md 與資料檔（json 字串值、csv cell）裡的連結；**檔案本身被搬**時，其內連結以舊位置解析、以新位置重算。流程見 `$AOS_HOME/knowledge/wf/workflows/tidy.md`。

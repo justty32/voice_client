@@ -1,0 +1,34 @@
+{
+  "CHOICES.md": {
+    "description": "使用者對組織規則的選擇來源；要查授權依據時讀。"
+  },
+  "README.md": {
+    "description": "組織入口與座位表；派工前確認誰負責時讀。"
+  },
+  "dev": {
+    "description": "程式開發座位的卡；交付程式或測試工作時讀。",
+    "index": "dev/_index.json"
+  },
+  "docs": {
+    "description": "文件座位的卡；交付文件工作或接續 docs 時讀。",
+    "index": "docs/_index.json"
+  },
+  "helper": {
+    "description": "單件雜活的卡；要派查證或機械工作時讀。",
+    "index": "helper/_index.json"
+  },
+  "lead": {
+    "description": "窗口 main 的卡；確認派工與驗收責任時讀。",
+    "index": "lead/_index.json"
+  },
+  "letters.md": {
+    "description": "本組織請求與回信要求；接件或交件時讀。"
+  },
+  "places.md": {
+    "description": "寫入範圍、暫存與共用資源約定；要放檔案或開座位時讀。"
+  },
+  "seat": {
+    "description": "空白座位卡樣板；新增座位時讀。",
+    "index": "seat/_index.json"
+  }
+}

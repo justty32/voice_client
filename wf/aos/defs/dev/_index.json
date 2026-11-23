@@ -1,0 +1,38 @@
+{
+  "README.md": {
+    "description": "dev 的定義說明與操作入口；檢查或調整座位定義時讀。"
+  },
+  "_entry": {
+    "description": "dev 的定義執行入口；檢查或調整座位定義時讀。"
+  },
+  "_metainfo.json": {
+    "description": "dev 的定義中介資料；檢查或調整座位定義時讀。"
+  },
+  "body.json": {
+    "description": "dev 的agent 身體設定；檢查或調整座位定義時讀。"
+  },
+  "fsm.json": {
+    "description": "dev 的stock FSM 狀態程式指向；檢查或調整座位定義時讀。"
+  },
+  "hookeds.json": {
+    "description": "dev 的hook 掛載設定；檢查或調整座位定義時讀。"
+  },
+  "interfaces.json": {
+    "description": "dev 的介面與 hooks 設定；檢查或調整座位定義時讀。"
+  },
+  "llm.json": {
+    "description": "dev 的腦的 model 設定；檢查或調整座位定義時讀。"
+  },
+  "loop.json": {
+    "description": "dev 的主迴圈設定；檢查或調整座位定義時讀。"
+  },
+  "subagents.json": {
+    "description": "dev 的下屬配額設定；檢查或調整座位定義時讀。"
+  },
+  "system.txt": {
+    "description": "dev 的座位系統提示；檢查或調整座位定義時讀。"
+  },
+  "tools.json": {
+    "description": "dev 的工具包設定；檢查或調整座位定義時讀。"
+  }
+}

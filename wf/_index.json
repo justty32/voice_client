@@ -1,0 +1,31 @@
+{
+  "README.md": {
+    "description": "工作文件補充與 aos 正本對照；初次進入 wf 時讀。"
+  },
+  "STRUCTURE.md": {
+    "description": "本專案的整理門檻、落點與工具補充；整理結構時讀。"
+  },
+  "aos": {
+    "description": "本專案 aos 定義與問題回報；掛載或診斷座位時讀。",
+    "index": "aos/_index.json"
+  },
+  "architecture": {
+    "description": "架構調查與歷史快照入口；準備調查架構時讀。",
+    "index": "architecture/_index.json"
+  },
+  "org": {
+    "description": "座位分工與交接規則；派工或確認權責時讀。",
+    "index": "org/_index.json"
+  },
+  "temp": {
+    "description": "各座位可丟的暫存與交接筆記；接續座位工作時讀。"
+  },
+  "tools": {
+    "description": "本專案檢查與資料檔工具；要驗連結、index 或操作資料檔時讀。",
+    "index": "tools/_index.json"
+  },
+  "workflows": {
+    "description": "本地記錄與未收進 aos 的契約；要記決定、查資料檔或回覆風格時讀。",
+    "index": "workflows/_index.json"
+  }
+}

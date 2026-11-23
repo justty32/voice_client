@@ -13,7 +13,7 @@
 ### 做
 
 - 維持 `docs/`（架構、使用手冊、技術調查）與 `README.md` 跟程式碼一致：維護鏈 `程式碼／測試 → CODE_MAP → docs → README` 的後兩段。
-- 維持 `workflows/`（code-map 除外）、`plans/`、`reports/`：規劃管線 `idea → roadmap → spec → plan` 的文件、已落地紀錄、封存照 [wf/STRUCTURE.md](../../STRUCTURE.md) 的 archive 規則。
+- 維持 `workflows/`（code-map 除外）、`plans/`、`reports/`：規劃管線 `idea → roadmap → spec → plan` 的文件、已落地紀錄、封存照 `$AOS_HOME/knowledge/wf/tidying.md` 的 archive 規則；本專案補充見 [wf/STRUCTURE.md](../../STRUCTURE.md)。
 
 ### 做完之後
 
