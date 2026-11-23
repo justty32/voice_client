@@ -21,5 +21,5 @@
 | 工具 | 用途 |
 |---|---|
 | `python workflows/common/code-map/codemap.py [big\|topics\|deps M\|show P\|json]` | AST 即時掃描：行數、依賴、topic 生產／消費圖 |
-| `bash wf/tools/wf-lint.sh .` | 文件連結、超標檔、大清單、模板殘留檢查 |
+| `bash wf/tools/wf-lint.sh .` | 文件連結、超標檔、大清單、模板殘留檢查（可選：預設不跑，大量搬檔後或使用者要求才跑） |
 | `python3 wf/tools/fix_moved_links.py` | 搬檔後依 moves.tsv 修 md 連結 |

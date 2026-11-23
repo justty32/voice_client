@@ -15,8 +15,8 @@
 | 設定開發環境、依賴或外部工具 | dev-env/tooling | [workflows/dev-env.md](workflows/dev-env.md) / [workflows/tooling/README.md](workflows/tooling/README.md) |
 | 整體分析外部 repo／系統 | analysis | [wf/workflows/analysis.md](wf/workflows/analysis.md) |
 | 為無法直接改的 repo 交付 patch | patch | [wf/workflows/patch.md](wf/workflows/patch.md) |
-| 記錄「為什麼選 A 不選 B」 | decisions | [wf/workflows/decisions.md](wf/workflows/decisions.md) |
-| 整理文檔結構、搬檔改名 | tidy | [wf/workflows/tidy/README.md](wf/workflows/tidy/README.md) / [moving-things](wf/workflows/refactor/moving-things.md) |
+| 記個決定／定了什麼 | decisions | [wf/workflows/decisions.md](wf/workflows/decisions.md) |
+| 整理文檔結構、搬檔改名、只留結論 | tidy | [wf/workflows/tidy/README.md](wf/workflows/tidy/README.md) / [moving-things](wf/workflows/refactor/moving-things.md) |
 
 規劃管線：
 
