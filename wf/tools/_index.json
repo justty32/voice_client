@@ -1,0 +1,19 @@
+{
+  "check_anchors.py": {"description": "Markdown 本地錨點檢查器；驗證文件連結片段時用。"},
+  "find_big_lists.py": {"description": "大型清單與表格搜尋器；整理超過門檻的 Markdown 區塊時用。"},
+  "fix_moved_links.py": {"description": "搬檔連結修復入口；依搬移表預覽或套用連結更新時用。"},
+  "fix_moved_links_fmt.py": {"description": "搬檔路徑代號重寫模組；修復資料檔內 $fmt 連結時用。"},
+  "fix_moved_links_scan.py": {"description": "搬檔掃描與路徑對映模組；尋找待更新檔案與新位置時用。"},
+  "fmt-vars.json": {"description": "路徑代號算法對映資料；查詢或調整 tabledb 的變數名稱時用。"},
+  "index_check_local.py": {"description": "專案索引檢查器；驗證 wf 的 _index.json 覆蓋、描述與目標路徑時用。"},
+  "tabledb.py": {"description": "同質列表資料操作入口；查詢、修改與檢查 JSON 或 CSV 資料檔時用。"},
+  "tabledb_fmt.py": {"description": "路徑代號展開介面；解析資料檔的 $fmt 指示詞時用。"},
+  "tabledb_fmt_expand.py": {"description": "路徑代號算法實作；依檔案位置或環境展開變數時用。"},
+  "tabledb_fmt_vars.py": {"description": "路徑變數表載入器；合併預設與專案自訂代號時用。"},
+  "tabledb_links.py": {"description": "資料檔連結解析模組；抽取、檢查與開啟連結欄位時用。"},
+  "tabledb_table.py": {"description": "同質列表資料模型；讀寫資料檔及操作列欄時用。"},
+  "test_index_check_local.py": {"description": "索引檢查回歸測試；驗證好壞索引、略過規則與 hook 結束碼時用。"},
+  "wf-lint-checks.sh": {"description": "工作流檢查函式集；由 wf-lint 執行各類文件檢查時用。"},
+  "wf-lint-local.sh": {"description": "專案自訂檢查 hook；由 wf-lint 接入索引檢查並傳回結束碼時用。"},
+  "wf-lint.sh": {"description": "工作流文件檢查入口；彙整連結、大小與專案自訂檢查時用。"}
+}
