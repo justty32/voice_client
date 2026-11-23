@@ -10,6 +10,7 @@ Voice Client 是語音優先的終端／手機 AI 客戶端。桌面與手機共
 - 要執行任務：先讀 [WORKFLOWS.md](WORKFLOWS.md)，依使用者意圖選工作流。
 - 要理解專案：先讀 [INDEX.md](INDEX.md)，再依 [CODE_MAP](workflows/common/code-map/CODE_MAP.md) 導航。
 - 要理解架構（資料流、topic、接線）：讀 [docs/architecture.md](docs/architecture.md)。
+- 誰負責什麼、做完交給誰（窗口 `main` 與 agent 座位 dev、docs）：讀 [wf/org/README.md](wf/org/README.md)。
 
 不要一開始遍讀整個 repo；從 CODE_MAP 的相關領域展開。
 

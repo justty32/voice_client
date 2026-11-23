@@ -10,6 +10,7 @@ kernel 資產收進這裡；根層既有檔案不被取代，這裡的連結一�
 
 ## 內容
 
+<!-- wf-nav -->
 | 路徑 | 用途 |
 |---|---|
 | [STRUCTURE.md](STRUCTURE.md) | 膨脹即拆、雜亂即分類的客觀門檻|
@@ -22,6 +23,8 @@ kernel 資產收進這裡；根層既有檔案不被取代，這裡的連結一�
 | [workflows/common/data-files.md](workflows/common/data-files.md) | 同質記錄表 > 1 KB 抽成資料檔|
 | [workflows/common/reply-style.md](workflows/common/reply-style.md) | 對話回覆文風（參考，非 always-on）|
 | [architecture/](architecture/README.md) | 架構調查入口（重構前快照已封存）|
+| [org/](org/README.md) | 組織：窗口與 agent 座位誰管哪塊、做完交給誰（本專案自有，不隨上游覆蓋）|
+| [aos/](aos/README.md) | 座位的 aos agent 定義、aos 問題回報（本專案自有）|
 | `tools/` | `wf-lint.sh`、`tabledb.py`、`fix_moved_links.py` 等 |
 
 tidy 原則 5「內容精簡」（檔內只留現行結論、使用者原文逐字留）見

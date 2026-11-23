@@ -1,0 +1,46 @@
+{
+ "description": "Hooks of this agent: aos functions run when an event happens (before_queue, after_queue, before_tool, after_tool, brain_failed, tool_added, after_start, after_stop, before_run, after_run, on_clock); the stack copy of this file overrides it by name, null turns one off. The timer hook is a place to hang something every 5 minutes (on_clock, every_ms 300000, AOS_CLOCK); its handler does nothing. The mail_notify hook looks at your mailbox every minute (on_clock, every_ms 60000) and, only when new letters came, puts one message \"[aos] new_mail: N new letters from A, B. ...\" in your queue (after a sleep, letters that came while you slept are announced once, those announced before are not; on a fresh start (no notified.json and no non-empty history.jsonl yet) waiting letters are only marked as known; a stack that already ran (has non-empty history) is treated like waking up: waiting letters are announced once); turn it off or change the interval in your stack copy (self_hook rm / add with replace). The brain_notify hook sends BLOCKED letters for BudgetMissing refusals and BrainFailed (once from the third consecutive retry, or when stopped) to the mailbox named by AOS_NOTIFY_BOX; subagent add sets it to the parent's mailbox unless explicitly given. The context_wrap hook sends /compact to this agent when measured context usage reaches 35%; wrap defaults to false for this body.",
+ "context_wrap": {
+  "event": "on_clock",
+  "every_ms": 5000,
+  "config": {
+   "percent": 35,
+   "wrap": false
+  },
+  "handler": {
+   "$env": "AOS_HOME",
+   "$path": "/lib/tools/agent/context_wrap"
+  },
+  "timeout_ms": 20000
+ },
+ "timer": {
+  "event": "on_clock",
+  "every_ms": 300000,
+  "handler": {
+   "$env": "AOS_HOME",
+   "$path": "/lib/tools/agent/hook_noop"
+  },
+  "timeout_ms": 5000
+ },
+ "brain_notify": {
+  "event": "brain_failed",
+  "condition": [
+   "BudgetMissing",
+   "BrainFailed"
+  ],
+  "handler": {
+   "$env": "AOS_HOME",
+   "$path": "/lib/tools/agent/brain_notify"
+  },
+  "timeout_ms": 10000
+ },
+ "mail_notify": {
+  "event": "on_clock",
+  "every_ms": 60000,
+  "handler": {
+   "$env": "AOS_HOME",
+   "$path": "/lib/tools/agent/mail_notify"
+  },
+  "timeout_ms": 10000
+ }
+}

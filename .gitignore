@@ -227,3 +227,6 @@ output/*.txt
 output/deleted/
 output/failed/
 !output/.gitkeep
+
+# aos 座位的暫存與筆記（wf/org CHOICE 7）
+wf/temp/

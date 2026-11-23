@@ -1,0 +1,5 @@
+{
+  "summary": "voice_client docs seat: agent-fsm whose cell programs are linked from $AOS_HOME/templates/agent-fsm; brain sol.",
+  "cost": {"time_ms": 30000},
+  "resource": ["llm"]
+}

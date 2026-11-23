@@ -23,6 +23,7 @@ Voice Client 將麥克風、STT、工作區、LLM、摘要、TTS 與桌面／手
 | `reports/` | 一次性健檢報告（目前無現役；2026-07 三份已封存於 `reports/archive/`） |
 | `workflows/` | 開發工作流與 durable 工程知識 |
 | `wf/` | 通用工作流 kernel 補充包（tidy、decisions、wf-lint 等）|
+| `wf/org/` / `wf/aos/` | 組織（窗口與 agent 座位誰管哪塊、交給誰）；座位的 aos 定義與 aos 問題回報 |
 
 ## 導航入口
 

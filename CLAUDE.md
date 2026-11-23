@@ -76,6 +76,7 @@ python -m compileall -q -x '/(\.venv|\.git)/' .
 
 - 工作流派發：[WORKFLOWS.md](WORKFLOWS.md)
 - 專案地圖：[INDEX.md](INDEX.md)
+- 誰負責什麼、做完交給誰（窗口 `main` 與 agent 座位 dev、docs）：[wf/org/README.md](wf/org/README.md)
 - 未完成的跨 session 進度：[SESSION-LOG.md](SESSION-LOG.md)
 - 等待使用者操作／驗證：[WAIT_USER.md](WAIT_USER.md)
 
